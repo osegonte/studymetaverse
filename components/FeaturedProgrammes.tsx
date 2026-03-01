@@ -2,7 +2,7 @@ import AnimatedSection from "./AnimatedSection";
 
 const programmes = [
   {
-    id: 1,
+    id: "1",
     image: "https://images.unsplash.com/photo-1562774053-701939374585?w=400&h=220&fit=crop",
     degree: "MASTER",
     deadline: "Deadline: 31 July",
@@ -12,7 +12,7 @@ const programmes = [
     language: "English",
   },
   {
-    id: 2,
+    id: "2",
     image: "https://images.unsplash.com/photo-1498243691581-b145c3f54a5a?w=400&h=220&fit=crop",
     degree: "BACHELOR",
     deadline: "Deadline: 31 May",
@@ -22,7 +22,7 @@ const programmes = [
     language: "English/German",
   },
   {
-    id: 3,
+    id: "3",
     image: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=400&h=220&fit=crop",
     degree: "MASTER",
     deadline: "Deadline: 15 June",
@@ -52,7 +52,10 @@ export default function FeaturedProgrammes() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
           {programmes.map((p, i) => (
             <AnimatedSection key={p.id} delay={i * 0.1}>
-              <div className="rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow group cursor-pointer h-full">
+              <a
+                href={`/programmes/${p.id}`}
+                className="block rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow group cursor-pointer h-full"
+              >
                 <div className="h-44 overflow-hidden">
                   <img src={p.image} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
                 </div>
@@ -69,7 +72,7 @@ export default function FeaturedProgrammes() {
                     <span>{p.language}</span>
                   </div>
                 </div>
-              </div>
+              </a>
             </AnimatedSection>
           ))}
         </div>
