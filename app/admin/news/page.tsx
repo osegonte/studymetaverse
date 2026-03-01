@@ -216,24 +216,24 @@ export default function NewsPage() {
               </FormField>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField label="Category">
-                  <select className={selectClass} value={form.category} onChange={set("category")}>
+                  <select className={selectClass} value={form.category ?? ""} onChange={set("category")}>
                     <option value="">Select category...</option>
                     {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </FormField>
                 <FormField label="Cover Image URL">
-                  <input className={inputClass} value={form.cover_image_url} onChange={set("cover_image_url")} placeholder="https://..." />
+                  <input className={inputClass} value={form.cover_image_url ?? ""} onChange={set("cover_image_url")} placeholder="https://..." />
                 </FormField>
               </div>
               <FormField label="Excerpt" hint="Short summary shown on news cards (max 160 chars)">
-                <textarea className={textareaClass} rows={2} value={form.excerpt} onChange={set("excerpt")} placeholder="Brief description..." maxLength={160} />
+                <textarea className={textareaClass} rows={2} value={form.excerpt ?? ""} onChange={set("excerpt")} placeholder="Brief description..." maxLength={160} />
               </FormField>
               <FormField label="Body Content" required>
                 <textarea className={textareaClass} rows={10} value={form.body} onChange={set("body")} placeholder="Full article content..." />
               </FormField>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField label="Publish Date">
-                  <input className={inputClass} type="date" value={form.published_at} onChange={set("published_at")} />
+                  <input className={inputClass} type="date" value={form.published_at ?? ""} onChange={set("published_at")} />
                 </FormField>
                 <div className="flex items-end pb-0.5">
                   <label className="flex items-center gap-3 cursor-pointer">

@@ -1,10 +1,23 @@
 "use client";
 import { useState, useEffect } from "react";
-import { supabase, University } from "@/lib/supabase";
+import { supabase, University, InstitutionType } from "@/lib/supabase";
 import { FormField, inputClass, selectClass, textareaClass } from "../_shared/types";
 
-const emptyUniversity = {
-  name: "", city: "", type: "public" as const, website_url: "", description: "",
+interface FormState {
+  name: string;
+  city: string;
+  type: InstitutionType;
+  website_url: string;
+  description: string;
+  address: string;
+  student_count: string;
+  ranking: string;
+  logo_url: string;
+  image_url: string;
+}
+
+const emptyUniversity: FormState = {
+  name: "", city: "", type: "public", website_url: "", description: "",
   address: "", student_count: "", ranking: "", logo_url: "", image_url: "",
 };
 
@@ -15,11 +28,10 @@ export default function UniversitiesPage() {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<University | null>(null);
-  const [form, setForm] = useState(emptyUniversity);
+  const [form, setForm] = useState<FormState>(emptyUniversity);
   const [search, setSearch] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  // ── Fetch ────────────────────────────────────────────────────
   useEffect(() => { fetchUniversities(); }, []);
 
   async function fetchUniversities() {
@@ -33,7 +45,6 @@ export default function UniversitiesPage() {
     setLoading(false);
   }
 
-  // ── Helpers ──────────────────────────────────────────────────
   const filtered = universities.filter(u =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
     u.city.toLowerCase().includes(search.toLowerCase())
@@ -52,7 +63,6 @@ export default function UniversitiesPage() {
   };
   const closeForm = () => { setShowForm(false); setEditing(null); setError(null); };
 
-  // ── Save ─────────────────────────────────────────────────────
   async function handleSave() {
     if (!form.name || !form.city) return;
     setSaving(true);
@@ -72,15 +82,10 @@ export default function UniversitiesPage() {
     };
 
     if (editing) {
-      const { error } = await supabase
-        .from("universities")
-        .update(payload)
-        .eq("id", editing.id);
+      const { error } = await supabase.from("universities").update(payload).eq("id", editing.id);
       if (error) { setError(error.message); setSaving(false); return; }
     } else {
-      const { error } = await supabase
-        .from("universities")
-        .insert(payload);
+      const { error } = await supabase.from("universities").insert(payload);
       if (error) { setError(error.message); setSaving(false); return; }
     }
 
@@ -89,7 +94,6 @@ export default function UniversitiesPage() {
     closeForm();
   }
 
-  // ── Delete ───────────────────────────────────────────────────
   async function handleDelete(id: string) {
     const { error } = await supabase.from("universities").delete().eq("id", id);
     if (error) setError(error.message);
@@ -97,7 +101,7 @@ export default function UniversitiesPage() {
     setDeleteConfirm(null);
   }
 
-  const set = (field: keyof typeof emptyUniversity) =>
+  const set = (field: keyof FormState) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm(prev => ({ ...prev, [field]: e.target.value }));
 
@@ -187,7 +191,6 @@ export default function UniversitiesPage() {
         )}
       </div>
 
-      {/* Delete confirm */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/40">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
@@ -201,7 +204,6 @@ export default function UniversitiesPage() {
         </div>
       )}
 
-      {/* Add/Edit modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/40">
           <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">

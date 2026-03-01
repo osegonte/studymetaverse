@@ -1,18 +1,47 @@
 "use client";
 import { useState, useEffect } from "react";
-import { supabase, Programme, University, SubjectArea, RequirementSection } from "@/lib/supabase";
+import {
+  supabase, Programme, University, SubjectArea, RequirementSection,
+  DegreeType, StudyMode, LanguageOfInstruction, StartSemester, NcStatus, RequirementStatus,
+} from "@/lib/supabase";
 import { FormField, inputClass, selectClass, textareaClass, PREP_GROUPS } from "../_shared/types";
 
-const emptyProgramme = {
-  university_id: "", title: "", degree_type: "masters" as const,
-  subject_area_id: "", study_mode: "fully_onsite" as const,
-  language_of_instruction: "english_only" as const, std_period_semesters: "",
-  start_semester: "winter" as const, program_details: "",
-  nc_status: "non_restricted" as const, ects_required: "0",
-  motiv_required: "no" as const, test_required: "no" as const,
-  interview: "no" as const, modul_required: "no" as const,
+interface FormState {
+  university_id: string;
+  title: string;
+  degree_type: DegreeType;
+  subject_area_id: string;
+  study_mode: StudyMode;
+  language_of_instruction: LanguageOfInstruction;
+  std_period_semesters: string;
+  start_semester: StartSemester;
+  program_details: string;
+  nc_status: NcStatus;
+  ects_required: string;
+  motiv_required: RequirementStatus;
+  test_required: RequirementStatus;
+  interview: RequirementStatus;
+  modul_required: RequirementStatus;
+  moiletter_accepted: boolean;
+  tuition_fee: boolean;
+  tuition_fee_amount: string;
+  preparation_subject_group: string;
+  deadline_winter: string;
+  deadline_summer: string;
+  is_featured: boolean;
+  is_published: boolean;
+}
+
+const emptyProgramme: FormState = {
+  university_id: "", title: "", degree_type: "masters",
+  subject_area_id: "", study_mode: "fully_onsite",
+  language_of_instruction: "english_only", std_period_semesters: "",
+  start_semester: "winter", program_details: "",
+  nc_status: "non_restricted", ects_required: "0",
+  motiv_required: "no", test_required: "no",
+  interview: "no", modul_required: "no",
   moiletter_accepted: false, tuition_fee: false, tuition_fee_amount: "",
-  preparation_subject_group: "" as const, deadline_winter: "", deadline_summer: "",
+  preparation_subject_group: "", deadline_winter: "", deadline_summer: "",
   is_featured: false, is_published: true,
 };
 
@@ -39,15 +68,12 @@ export default function ProgrammesPage() {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Programme | null>(null);
-  const [form, setForm] = useState(emptyProgramme);
+  const [form, setForm] = useState<FormState>(emptyProgramme);
   const [requirements, setRequirements] = useState<RequirementSection[]>([]);
   const [search, setSearch] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  // ── Fetch ────────────────────────────────────────────────────
-  useEffect(() => {
-    fetchAll();
-  }, []);
+  useEffect(() => { fetchAll(); }, []);
 
   async function fetchAll() {
     setLoading(true);
@@ -94,7 +120,7 @@ export default function ProgrammesPage() {
       moiletter_accepted: p.moiletter_accepted,
       tuition_fee: p.tuition_fee,
       tuition_fee_amount: String(p.tuition_fee_amount ?? ""),
-      preparation_subject_group: (p.preparation_subject_group ?? "") as typeof emptyProgramme["preparation_subject_group"],
+      preparation_subject_group: p.preparation_subject_group ?? "",
       deadline_winter: p.deadline_winter ?? "",
       deadline_summer: p.deadline_summer ?? "",
       is_featured: p.is_featured,
@@ -105,7 +131,12 @@ export default function ProgrammesPage() {
     setShowForm(true);
   };
 
-  const closeForm = () => { setShowForm(false); setEditing(null); setError(null); setRequirements([]); };
+  const closeForm = () => {
+    setShowForm(false);
+    setEditing(null);
+    setError(null);
+    setRequirements([]);
+  };
 
   // ── Requirements helpers ─────────────────────────────────────
   const addSection = () => setRequirements(prev => [...prev, emptySection()]);
@@ -181,11 +212,11 @@ export default function ProgrammesPage() {
     setDeleteConfirm(null);
   }
 
-  const set = (field: keyof typeof emptyProgramme) =>
+  const set = (field: keyof FormState) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm(prev => ({ ...prev, [field]: e.target.value }));
 
-  const setCheck = (field: keyof typeof emptyProgramme) =>
+  const setCheck = (field: keyof FormState) =>
     (e: React.ChangeEvent<HTMLInputElement>) =>
       setForm(prev => ({ ...prev, [field]: e.target.checked }));
 
@@ -428,7 +459,12 @@ export default function ProgrammesPage() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
                   {(["motiv_required", "test_required", "interview", "modul_required"] as const).map((field) => (
-                    <FormField key={field} label={field === "motiv_required" ? "Motivation Letter" : field === "test_required" ? "Test Required" : field === "interview" ? "Interview" : "Module Handbook"}>
+                    <FormField key={field} label={
+                      field === "motiv_required" ? "Motivation Letter"
+                      : field === "test_required" ? "Test Required"
+                      : field === "interview" ? "Interview"
+                      : "Module Handbook"
+                    }>
                       <select className={selectClass} value={form[field]} onChange={set(field)}>
                         <option value="yes">Yes</option>
                         <option value="no">No</option>
@@ -475,50 +511,32 @@ export default function ProgrammesPage() {
                             Section {i + 1}
                           </span>
                           <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => moveSection(i, -1)}
-                              disabled={i === 0}
-                              className="p-1 text-gray-400 hover:text-[#1a3c5e] disabled:opacity-30 disabled:cursor-not-allowed rounded transition-colors"
-                              title="Move up"
-                            >
+                            <button onClick={() => moveSection(i, -1)} disabled={i === 0}
+                              className="p-1 text-gray-400 hover:text-[#1a3c5e] disabled:opacity-30 disabled:cursor-not-allowed rounded transition-colors">
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
                               </svg>
                             </button>
-                            <button
-                              onClick={() => moveSection(i, 1)}
-                              disabled={i === requirements.length - 1}
-                              className="p-1 text-gray-400 hover:text-[#1a3c5e] disabled:opacity-30 disabled:cursor-not-allowed rounded transition-colors"
-                              title="Move down"
-                            >
+                            <button onClick={() => moveSection(i, 1)} disabled={i === requirements.length - 1}
+                              className="p-1 text-gray-400 hover:text-[#1a3c5e] disabled:opacity-30 disabled:cursor-not-allowed rounded transition-colors">
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                               </svg>
                             </button>
-                            <button
-                              onClick={() => removeSection(i)}
-                              className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors ml-1"
-                              title="Remove section"
-                            >
+                            <button onClick={() => removeSection(i)}
+                              className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors ml-1">
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                               </svg>
                             </button>
                           </div>
                         </div>
-                        <input
-                          className={inputClass}
-                          value={section.title}
+                        <input className={inputClass} value={section.title}
                           onChange={e => updateSection(i, "title", e.target.value)}
-                          placeholder="Section title, e.g. Language Requirements"
-                        />
-                        <textarea
-                          className={textareaClass}
-                          rows={3}
-                          value={section.content}
+                          placeholder="Section title, e.g. Language Requirements" />
+                        <textarea className={textareaClass} rows={3} value={section.content}
                           onChange={e => updateSection(i, "content", e.target.value)}
-                          placeholder="Section content..."
-                        />
+                          placeholder="Section content..." />
                       </div>
                     ))}
                   </div>
@@ -561,11 +579,11 @@ export default function ProgrammesPage() {
                 <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Publishing</h3>
                 <div className="flex flex-col gap-3">
                   {([
-                    { field: "is_published", label: "Published", desc: "Visible to users on the programmes page" },
-                    { field: "is_featured", label: "Featured on Homepage", desc: "Shows in the Featured Programmes section" },
-                  ] as const).map(({ field, label, desc }) => (
+                    { field: "is_published" as const, label: "Published", desc: "Visible to users on the programmes page" },
+                    { field: "is_featured" as const, label: "Featured on Homepage", desc: "Shows in the Featured Programmes section" },
+                  ]).map(({ field, label, desc }) => (
                     <label key={field} className="flex items-center gap-3 cursor-pointer select-none">
-                      <input type="checkbox" checked={form[field]} onChange={setCheck(field)} className="w-4 h-4 accent-[#1a3c5e]" />
+                      <input type="checkbox" checked={form[field] as boolean} onChange={setCheck(field)} className="w-4 h-4 accent-[#1a3c5e]" />
                       <div>
                         <p className="font-semibold text-gray-700 text-[13.5px]">{label}</p>
                         <p className="text-gray-400 text-[12px]">{desc}</p>
