@@ -1,4 +1,19 @@
+"use client";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+
 export default function PremiumCTA() {
+  const [price, setPrice] = useState("29");
+
+  useEffect(() => {
+    supabase
+      .from("settings")
+      .select("value")
+      .eq("key", "match_report_price")
+      .single()
+      .then(({ data }) => { if (data) setPrice(data.value); });
+  }, []);
+
   return (
     <section className="relative overflow-hidden bg-[#0f2942] py-20 px-4">
 
@@ -13,7 +28,7 @@ export default function PremiumCTA() {
             Expert Analysis
           </span>
           <h2 className="text-4xl font-extrabold text-white leading-tight tracking-tight mb-4">
-            Get Your Personalized Match<br />Report for just €29
+            Get Your Personalized Match<br />Report for just €{price}
           </h2>
           <p className="text-white/60 text-[15px] font-medium mb-8 max-w-md leading-relaxed">
             Stop guessing your chances. Get a data-backed report on your admission probability for any programme in Germany.
@@ -40,13 +55,13 @@ export default function PremiumCTA() {
           </a>
         </div>
 
-        {/* Right - Mock Report Card */}
+        {/* Right — Mock Report Card */}
         <div className="flex-1 flex justify-center relative py-8">
 
           {/* Price badge */}
           <div className="absolute -top-2 right-4 md:right-16 w-20 h-20 bg-yellow-400 rounded-full flex flex-col items-center justify-center z-10 shadow-2xl ring-4 ring-yellow-300/50">
             <span className="text-[9px] font-bold text-yellow-900 uppercase tracking-wide">Only</span>
-            <span className="text-[18px] font-extrabold text-yellow-900">€29</span>
+            <span className="text-[18px] font-extrabold text-yellow-900">€{price}</span>
           </div>
 
           {/* Tilted card */}
@@ -77,7 +92,7 @@ export default function PremiumCTA() {
               </div>
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Language Proof</p>
-                <p className="text-[#1a3c5e] font-extrabold text-[13px]">IELTS 7.5 — OK</p>
+                <p className="text-[#1a3c5e] font-extrabold text-[13px]">IELTS 7.5 OK</p>
               </div>
             </div>
 

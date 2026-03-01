@@ -1,32 +1,20 @@
 "use client";
-import { useState } from "react";
-import {
-  FormField, inputClass, selectClass, textareaClass,
-  Programme, SUBJECT_AREAS, PREP_GROUPS
-} from "../_shared/types";
+import { useState, useEffect } from "react";
+import { supabase, Programme, University, SubjectArea } from "@/lib/supabase";
+import { FormField, inputClass, selectClass, textareaClass, PREP_GROUPS } from "../_shared/types";
 
-const emptyProgramme: Programme = {
-  university_id: "", title: "", degree_type: "masters", subject_area_id: "",
-  study_mode: "fully_onsite", language_of_instruction: "english_only",
-  std_period_semesters: "", start_semester: "winter", program_details: "",
-  nc_status: "non_restricted", ects_required: "0",
-  motiv_required: "no", test_required: "no", interview: "no", modul_required: "no",
+const emptyProgramme = {
+  university_id: "", title: "", degree_type: "masters" as const,
+  subject_area_id: "", study_mode: "fully_onsite" as const,
+  language_of_instruction: "english_only" as const, std_period_semesters: "",
+  start_semester: "winter" as const, program_details: "",
+  nc_status: "non_restricted" as const, ects_required: "0",
+  motiv_required: "no" as const, test_required: "no" as const,
+  interview: "no" as const, modul_required: "no" as const,
   moiletter_accepted: false, tuition_fee: false, tuition_fee_amount: "",
-  preparation_subject_group: "", deadline_winter: "", deadline_summer: "",
+  preparation_subject_group: "" as const, deadline_winter: "", deadline_summer: "",
   is_featured: false, is_published: true,
 };
-
-// Mock universities for select dropdown
-const mockUniversities = [
-  { id: "1", name: "Technical University of Munich" },
-  { id: "2", name: "Humboldt University Berlin" },
-];
-
-// Mock programmes
-const mockProgrammes = [
-  { id: "1", title: "Data Science & AI", university_id: "1", degree_type: "masters", language_of_instruction: "english_only", tuition_fee: false, is_published: true, is_featured: true },
-  { id: "2", title: "Business Administration", university_id: "2", degree_type: "bachelors", language_of_instruction: "german_english", tuition_fee: true, is_published: true, is_featured: false },
-];
 
 const degreeLabels: Record<string, string> = {
   preparatory_course: "Preparatory Course",
@@ -41,47 +29,132 @@ const languageLabels: Record<string, string> = {
 };
 
 export default function ProgrammesPage() {
-  const [programmes, setProgrammes] = useState(mockProgrammes);
+  const [programmes, setProgrammes] = useState<(Programme & { universities?: { name: string } })[]>([]);
+  const [universities, setUniversities] = useState<University[]>([]);
+  const [subjectAreas, setSubjectAreas] = useState<SubjectArea[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<typeof mockProgrammes[0] | null>(null);
-  const [form, setForm] = useState<Programme>(emptyProgramme);
+  const [editing, setEditing] = useState<Programme | null>(null);
+  const [form, setForm] = useState(emptyProgramme);
   const [search, setSearch] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  // ── Fetch ────────────────────────────────────────────────────
+  useEffect(() => {
+    fetchAll();
+  }, []);
+
+  async function fetchAll() {
+    setLoading(true);
+    const [progRes, uniRes, saRes] = await Promise.all([
+      supabase.from("programs").select("*, universities(name)").order("title"),
+      supabase.from("universities").select("*").order("name"),
+      supabase.from("subject_areas").select("*").order("name"),
+    ]);
+    if (progRes.error) setError(progRes.error.message);
+    else setProgrammes(progRes.data ?? []);
+    if (uniRes.data) setUniversities(uniRes.data);
+    if (saRes.data) setSubjectAreas(saRes.data);
+    setLoading(false);
+  }
 
   const filtered = programmes.filter(p =>
     p.title.toLowerCase().includes(search.toLowerCase())
   );
 
   const openNew = () => { setForm(emptyProgramme); setEditing(null); setShowForm(true); };
-  const openEdit = (p: typeof mockProgrammes[0]) => {
-    setForm({ ...emptyProgramme, ...p });
+  const openEdit = (p: Programme) => {
+    setForm({
+      university_id: p.university_id,
+      title: p.title,
+      degree_type: p.degree_type,
+      subject_area_id: String(p.subject_area_id ?? ""),
+      study_mode: p.study_mode,
+      language_of_instruction: p.language_of_instruction,
+      std_period_semesters: String(p.std_period_semesters ?? ""),
+      start_semester: p.start_semester,
+      program_details: p.program_details ?? "",
+      nc_status: p.nc_status,
+      ects_required: String(p.ects_required),
+      motiv_required: p.motiv_required,
+      test_required: p.test_required,
+      interview: p.interview,
+      modul_required: p.modul_required,
+      moiletter_accepted: p.moiletter_accepted,
+      tuition_fee: p.tuition_fee,
+      tuition_fee_amount: String(p.tuition_fee_amount ?? ""),
+      preparation_subject_group: (p.preparation_subject_group ?? "") as typeof emptyProgramme["preparation_subject_group"],
+      deadline_winter: p.deadline_winter ?? "",
+      deadline_summer: p.deadline_summer ?? "",
+      is_featured: p.is_featured,
+      is_published: p.is_published,
+    });
     setEditing(p);
     setShowForm(true);
   };
-  const closeForm = () => { setShowForm(false); setEditing(null); };
+  const closeForm = () => { setShowForm(false); setEditing(null); setError(null); };
 
-  const handleSave = () => {
+  // ── Save ─────────────────────────────────────────────────────
+  async function handleSave() {
     if (!form.title || !form.university_id) return;
+    setSaving(true);
+    setError(null);
+
+    const payload = {
+      university_id: form.university_id,
+      title: form.title,
+      degree_type: form.degree_type,
+      subject_area_id: form.subject_area_id ? parseInt(form.subject_area_id) : null,
+      study_mode: form.study_mode,
+      language_of_instruction: form.language_of_instruction,
+      std_period_semesters: form.std_period_semesters ? parseInt(form.std_period_semesters) : null,
+      start_semester: form.start_semester,
+      program_details: form.program_details || null,
+      nc_status: form.nc_status,
+      ects_required: parseInt(form.ects_required),
+      motiv_required: form.motiv_required,
+      test_required: form.test_required,
+      interview: form.interview,
+      modul_required: form.modul_required,
+      moiletter_accepted: form.moiletter_accepted,
+      tuition_fee: form.tuition_fee,
+      tuition_fee_amount: form.tuition_fee && form.tuition_fee_amount ? parseFloat(form.tuition_fee_amount) : null,
+      preparation_subject_group: form.preparation_subject_group || null,
+      deadline_winter: form.deadline_winter || null,
+      deadline_summer: form.deadline_summer || null,
+      is_featured: form.is_featured,
+      is_published: form.is_published,
+    };
+
     if (editing) {
-      setProgrammes(prev => prev.map(p => p.id === editing.id ? { ...p, ...form } : p));
+      const { error } = await supabase.from("programs").update(payload).eq("id", editing.id);
+      if (error) { setError(error.message); setSaving(false); return; }
     } else {
-      setProgrammes(prev => [...prev, { ...form, id: Date.now().toString() } as typeof mockProgrammes[0]]);
+      const { error } = await supabase.from("programs").insert(payload);
+      if (error) { setError(error.message); setSaving(false); return; }
     }
-    // TODO: await supabase.from('programs').upsert(form)
+
+    await fetchAll();
+    setSaving(false);
     closeForm();
-  };
+  }
 
-  const handleDelete = (id: string) => {
-    setProgrammes(prev => prev.filter(p => p.id !== id));
+  async function handleDelete(id: string) {
+    const { error } = await supabase.from("programs").delete().eq("id", id);
+    if (error) setError(error.message);
+    else setProgrammes(prev => prev.filter(p => p.id !== id));
     setDeleteConfirm(null);
-  };
+  }
 
-  const set = (field: keyof Programme) => (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => setForm(prev => ({ ...prev, [field]: e.target.value }));
+  const set = (field: keyof typeof emptyProgramme) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+      setForm(prev => ({ ...prev, [field]: e.target.value }));
 
-  const setCheck = (field: keyof Programme) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm(prev => ({ ...prev, [field]: e.target.checked }));
+  const setCheck = (field: keyof typeof emptyProgramme) =>
+    (e: React.ChangeEvent<HTMLInputElement>) =>
+      setForm(prev => ({ ...prev, [field]: e.target.checked }));
 
   const isPrep = form.degree_type === "preparatory_course";
 
@@ -100,34 +173,35 @@ export default function ProgrammesPage() {
         </button>
       </div>
 
+      {error && !showForm && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-[13px]">{error}</div>
+      )}
+
       <div className="relative mb-4">
         <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
         </svg>
-        <input
-          type="text"
-          placeholder="Search by title..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-[13.5px] outline-none focus:border-[#1a3c5e] focus:ring-2 focus:ring-[#1a3c5e]/10 transition-all bg-white"
-        />
+        <input type="text" placeholder="Search by title..." value={search} onChange={e => setSearch(e.target.value)}
+          className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-[13.5px] outline-none focus:border-[#1a3c5e] focus:ring-2 focus:ring-[#1a3c5e]/10 transition-all bg-white" />
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        {filtered.length === 0 ? (
+        {loading ? (
           <div className="text-center py-16">
-            <svg className="w-10 h-10 text-gray-200 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <p className="text-gray-400 text-sm font-medium">No programmes yet.</p>
-            <button onClick={openNew} className="mt-3 text-[#1a3c5e] text-sm font-semibold hover:underline">Add your first programme</button>
+            <div className="w-6 h-6 border-2 border-[#1a3c5e] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-gray-400 text-sm">Loading programmes...</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16">
+            <p className="text-gray-400 text-sm font-medium">{search ? "No results found." : "No programmes yet."}</p>
+            {!search && <button onClick={openNew} className="mt-3 text-[#1a3c5e] text-sm font-semibold hover:underline">Add your first programme</button>}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  {["Title", "Degree", "Language", "Tuition", "Featured", "Status", ""].map(h => (
+                  {["Title", "University", "Degree", "Language", "Tuition", "Featured", "Status", ""].map(h => (
                     <th key={h} className="px-5 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -135,7 +209,12 @@ export default function ProgrammesPage() {
               <tbody className="divide-y divide-gray-50">
                 {filtered.map(p => (
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3.5 font-semibold text-[#1a3c5e] text-[13.5px]">{p.title}</td>
+                    <td className="px-5 py-3.5 font-semibold text-[#1a3c5e] text-[13.5px] max-w-[200px]">
+                      <p className="truncate">{p.title}</p>
+                    </td>
+                    <td className="px-5 py-3.5 text-gray-500 text-[13px] max-w-[160px]">
+                      <p className="truncate">{(p as any).universities?.name ?? "—"}</p>
+                    </td>
                     <td className="px-5 py-3.5">
                       <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#1a3c5e]/10 text-[#1a3c5e]">
                         {degreeLabels[p.degree_type]}
@@ -148,11 +227,10 @@ export default function ProgrammesPage() {
                       </span>
                     </td>
                     <td className="px-5 py-3.5">
-                      {p.is_featured ? (
-                        <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                      ) : (
-                        <span className="text-gray-300 text-sm">—</span>
-                      )}
+                      {p.is_featured
+                        ? <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        : <span className="text-gray-300 text-sm">—</span>
+                      }
                     </td>
                     <td className="px-5 py-3.5">
                       <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${p.is_published ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-400"}`}>
@@ -181,21 +259,19 @@ export default function ProgrammesPage() {
         )}
       </div>
 
-      {/* Delete confirm */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/40">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
             <h3 className="font-extrabold text-[#1a3c5e] text-lg mb-2">Delete Programme?</h3>
             <p className="text-gray-400 text-sm mb-6">This cannot be undone.</p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-gray-600 font-semibold text-sm hover:bg-gray-50">Cancel</button>
-              <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 py-2.5 bg-red-500 text-white rounded-xl font-semibold text-sm hover:bg-red-600">Delete</button>
+              <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-gray-600 font-semibold text-sm">Cancel</button>
+              <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 py-2.5 bg-red-500 text-white rounded-xl font-semibold text-sm">Delete</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Add/Edit modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/40">
           <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto shadow-2xl">
@@ -209,8 +285,9 @@ export default function ProgrammesPage() {
             </div>
 
             <div className="px-6 py-5 flex flex-col gap-5">
+              {error && <div className="px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-[13px]">{error}</div>}
 
-              {/* Section: Basic Info */}
+              {/* Basic Info */}
               <div>
                 <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Basic Information</h3>
                 <div className="flex flex-col gap-4">
@@ -221,7 +298,7 @@ export default function ProgrammesPage() {
                     <FormField label="University" required>
                       <select className={selectClass} value={form.university_id} onChange={set("university_id")}>
                         <option value="">Select university...</option>
-                        {mockUniversities.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                        {universities.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                       </select>
                     </FormField>
                     <FormField label="Degree Type" required>
@@ -236,7 +313,7 @@ export default function ProgrammesPage() {
                     <FormField label="Subject Area">
                       <select className={selectClass} value={form.subject_area_id} onChange={set("subject_area_id")}>
                         <option value="">Select subject area...</option>
-                        {SUBJECT_AREAS.map((s, i) => <option key={i} value={String(i + 1)}>{s}</option>)}
+                        {subjectAreas.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
                       </select>
                     </FormField>
                     <FormField label="Duration (Semesters)">
@@ -244,18 +321,18 @@ export default function ProgrammesPage() {
                     </FormField>
                   </div>
                   <FormField label="Programme Description">
-                    <textarea className={textareaClass} rows={4} value={form.program_details} onChange={set("program_details")} placeholder="Describe the programme content, objectives, and outcomes..." />
+                    <textarea className={textareaClass} rows={4} value={form.program_details} onChange={set("program_details")} placeholder="Describe the programme..." />
                   </FormField>
                 </div>
               </div>
 
               <hr className="border-gray-100" />
 
-              {/* Section: Study Details */}
+              {/* Study Details */}
               <div>
                 <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Study Details</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <FormField label="Language of Instruction" required>
+                  <FormField label="Language" required>
                     <select className={selectClass} value={form.language_of_instruction} onChange={set("language_of_instruction")}>
                       <option value="german_only">German Only</option>
                       <option value="english_only">English Only</option>
@@ -277,7 +354,6 @@ export default function ProgrammesPage() {
                     </select>
                   </FormField>
                 </div>
-
                 {isPrep && (
                   <div className="mt-4">
                     <FormField label="Preparation Subject Group">
@@ -292,7 +368,7 @@ export default function ProgrammesPage() {
 
               <hr className="border-gray-100" />
 
-              {/* Section: Admission */}
+              {/* Admission */}
               <div>
                 <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Admission Requirements</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -318,39 +394,21 @@ export default function ProgrammesPage() {
                   </FormField>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
-                  <FormField label="Motivation Letter">
-                    <select className={selectClass} value={form.motiv_required} onChange={set("motiv_required")}>
-                      <option value="yes">Yes</option>
-                      <option value="no">No</option>
-                      <option value="varied">Varied</option>
-                    </select>
-                  </FormField>
-                  <FormField label="Test Required">
-                    <select className={selectClass} value={form.test_required} onChange={set("test_required")}>
-                      <option value="yes">Yes</option>
-                      <option value="no">No</option>
-                      <option value="varied">Varied</option>
-                    </select>
-                  </FormField>
-                  <FormField label="Interview Required">
-                    <select className={selectClass} value={form.interview} onChange={set("interview")}>
-                      <option value="yes">Yes</option>
-                      <option value="no">No</option>
-                      <option value="varied">Varied</option>
-                    </select>
-                  </FormField>
-                  <FormField label="Module Handbook">
-                    <select className={selectClass} value={form.modul_required} onChange={set("modul_required")}>
-                      <option value="yes">Yes</option>
-                      <option value="no">No</option>
-                    </select>
-                  </FormField>
+                  {(["motiv_required", "test_required", "interview", "modul_required"] as const).map((field) => (
+                    <FormField key={field} label={field === "motiv_required" ? "Motivation Letter" : field === "test_required" ? "Test Required" : field === "interview" ? "Interview" : "Module Handbook"}>
+                      <select className={selectClass} value={form[field]} onChange={set(field)}>
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                        {field !== "modul_required" && <option value="varied">Varied</option>}
+                      </select>
+                    </FormField>
+                  ))}
                 </div>
               </div>
 
               <hr className="border-gray-100" />
 
-              {/* Section: Tuition & Deadlines */}
+              {/* Tuition & Deadlines */}
               <div>
                 <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Tuition & Deadlines</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -379,34 +437,30 @@ export default function ProgrammesPage() {
 
               <hr className="border-gray-100" />
 
-              {/* Section: Publishing */}
+              {/* Publishing */}
               <div>
                 <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Publishing</h3>
                 <div className="flex flex-col gap-3">
-                  <label className="flex items-center gap-3 cursor-pointer select-none">
-                    <input type="checkbox" checked={form.is_published} onChange={setCheck("is_published")}
-                      className="w-4 h-4 rounded border-gray-300 text-[#1a3c5e] accent-[#1a3c5e]" />
-                    <div>
-                      <p className="font-semibold text-gray-700 text-[13.5px]">Published</p>
-                      <p className="text-gray-400 text-[12px]">Visible to users on the programmes page</p>
-                    </div>
-                  </label>
-                  <label className="flex items-center gap-3 cursor-pointer select-none">
-                    <input type="checkbox" checked={form.is_featured} onChange={setCheck("is_featured")}
-                      className="w-4 h-4 rounded border-gray-300 text-[#1a3c5e] accent-[#1a3c5e]" />
-                    <div>
-                      <p className="font-semibold text-gray-700 text-[13.5px]">Featured on Homepage</p>
-                      <p className="text-gray-400 text-[12px]">Shows in the Featured Programmes section on the landing page</p>
-                    </div>
-                  </label>
+                  {([
+                    { field: "is_published", label: "Published", desc: "Visible to users on the programmes page" },
+                    { field: "is_featured", label: "Featured on Homepage", desc: "Shows in the Featured Programmes section" },
+                  ] as const).map(({ field, label, desc }) => (
+                    <label key={field} className="flex items-center gap-3 cursor-pointer select-none">
+                      <input type="checkbox" checked={form[field]} onChange={setCheck(field)} className="w-4 h-4 accent-[#1a3c5e]" />
+                      <div>
+                        <p className="font-semibold text-gray-700 text-[13.5px]">{label}</p>
+                        <p className="text-gray-400 text-[12px]">{desc}</p>
+                      </div>
+                    </label>
+                  ))}
                 </div>
               </div>
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
-              <button onClick={closeForm} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-gray-600 font-semibold text-[13.5px] hover:bg-gray-50 transition-colors">Cancel</button>
-              <button onClick={handleSave} className="flex-1 py-2.5 bg-[#1a3c5e] text-white font-bold text-[13.5px] rounded-xl hover:bg-[#14304d] transition-colors">
-                {editing ? "Save Changes" : "Add Programme"}
+              <button onClick={closeForm} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-gray-600 font-semibold text-[13.5px] hover:bg-gray-50">Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 bg-[#1a3c5e] text-white font-bold text-[13.5px] rounded-xl hover:bg-[#14304d] disabled:opacity-60">
+                {saving ? "Saving..." : editing ? "Save Changes" : "Add Programme"}
               </button>
             </div>
           </div>

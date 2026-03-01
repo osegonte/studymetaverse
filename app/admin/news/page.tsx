@@ -1,16 +1,12 @@
 "use client";
-import { useState } from "react";
-import { FormField, inputClass, selectClass, textareaClass, NewsPost } from "../_shared/types";
+import { useState, useEffect } from "react";
+import { supabase, NewsPost } from "@/lib/supabase";
+import { FormField, inputClass, selectClass, textareaClass } from "../_shared/types";
 
-const emptyPost: NewsPost = {
+const emptyPost: Omit<NewsPost, "id" | "created_at" | "updated_at"> = {
   title: "", slug: "", body: "", excerpt: "",
   category: "", cover_image_url: "", is_published: false, published_at: "",
 };
-
-const mockPosts: NewsPost[] = [
-  { id: "1", title: "New Engineering Programmes for 2025", slug: "new-engineering-programmes-2025", body: "...", excerpt: "Several top German universities have opened applications for new engineering master's programmes.", category: "Programmes", cover_image_url: "", is_published: true, published_at: "2025-01-15" },
-  { id: "2", title: "Germany Visa Changes for International Students", slug: "germany-visa-changes-2025", body: "...", excerpt: "Important updates to the student visa application process for non-EU applicants.", category: "Visa", cover_image_url: "", is_published: false, published_at: "" },
-] as (NewsPost & { id: string })[];
 
 const CATEGORIES = ["Admissions", "Programmes", "Scholarships", "Visa", "Career", "Life in Germany", "News"];
 
@@ -19,38 +15,83 @@ function slugify(text: string) {
 }
 
 export default function NewsPage() {
-  const [posts, setPosts] = useState(mockPosts as (NewsPost & { id: string })[]);
+  const [posts, setPosts] = useState<NewsPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<(NewsPost & { id: string }) | null>(null);
-  const [form, setForm] = useState<NewsPost>(emptyPost);
+  const [editing, setEditing] = useState<NewsPost | null>(null);
+  const [form, setForm] = useState(emptyPost);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
+  useEffect(() => { fetchPosts(); }, []);
+
+  async function fetchPosts() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("news_posts")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) setError(error.message);
+    else setPosts(data ?? []);
+    setLoading(false);
+  }
+
   const openNew = () => { setForm(emptyPost); setEditing(null); setShowForm(true); };
-  const openEdit = (p: NewsPost & { id: string }) => { setForm({ ...p }); setEditing(p); setShowForm(true); };
-  const closeForm = () => { setShowForm(false); setEditing(null); };
+  const openEdit = (p: NewsPost) => {
+    setForm({
+      title: p.title, slug: p.slug, body: p.body,
+      excerpt: p.excerpt ?? "", category: p.category ?? "",
+      cover_image_url: p.cover_image_url ?? "",
+      is_published: p.is_published,
+      published_at: p.published_at ? p.published_at.split("T")[0] : "",
+    });
+    setEditing(p);
+    setShowForm(true);
+  };
+  const closeForm = () => { setShowForm(false); setEditing(null); setError(null); };
 
-  const handleSave = () => {
-    if (!form.title) return;
-    const final = { ...form, slug: form.slug || slugify(form.title) };
+  async function handleSave() {
+    if (!form.title || !form.body) return;
+    setSaving(true);
+    setError(null);
+
+    const payload = {
+      title: form.title,
+      slug: form.slug || slugify(form.title),
+      body: form.body,
+      excerpt: form.excerpt || null,
+      category: form.category || null,
+      cover_image_url: form.cover_image_url || null,
+      is_published: form.is_published,
+      published_at: form.is_published
+        ? (form.published_at ? new Date(form.published_at).toISOString() : new Date().toISOString())
+        : null,
+    };
+
     if (editing) {
-      setPosts(prev => prev.map(p => p.id === editing.id ? { ...p, ...final } : p));
+      const { error } = await supabase.from("news_posts").update(payload).eq("id", editing.id);
+      if (error) { setError(error.message); setSaving(false); return; }
     } else {
-      setPosts(prev => [...prev, { ...final, id: Date.now().toString() }]);
+      const { error } = await supabase.from("news_posts").insert(payload);
+      if (error) { setError(error.message); setSaving(false); return; }
     }
+
+    await fetchPosts();
+    setSaving(false);
     closeForm();
-  };
+  }
 
-  const handleDelete = (id: string) => {
-    setPosts(prev => prev.filter(p => p.id !== id));
+  async function handleDelete(id: string) {
+    const { error } = await supabase.from("news_posts").delete().eq("id", id);
+    if (error) setError(error.message);
+    else setPosts(prev => prev.filter(p => p.id !== id));
     setDeleteConfirm(null);
-  };
+  }
 
-  const set = (field: keyof NewsPost) => (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => setForm(prev => ({ ...prev, [field]: e.target.value }));
-
-  const setCheck = (field: keyof NewsPost) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm(prev => ({ ...prev, [field]: e.target.checked }));
+  const set = (field: keyof typeof emptyPost) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+      setForm(prev => ({ ...prev, [field]: e.target.value }));
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const title = e.target.value;
@@ -72,8 +113,17 @@ export default function NewsPage() {
         </button>
       </div>
 
+      {error && !showForm && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-[13px]">{error}</div>
+      )}
+
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        {posts.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-16">
+            <div className="w-6 h-6 border-2 border-[#1a3c5e] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-gray-400 text-sm">Loading posts...</p>
+          </div>
+        ) : posts.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-gray-400 text-sm font-medium">No news posts yet.</p>
             <button onClick={openNew} className="mt-3 text-[#1a3c5e] text-sm font-semibold hover:underline">Write your first post</button>
@@ -105,7 +155,9 @@ export default function NewsPage() {
                         {p.is_published ? "Published" : "Draft"}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-gray-400 text-[13px]">{p.published_at || "—"}</td>
+                    <td className="px-5 py-3.5 text-gray-400 text-[13px]">
+                      {p.published_at ? new Date(p.published_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                    </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2 justify-end">
                         <button onClick={() => openEdit(p)} className="p-1.5 text-gray-400 hover:text-[#1a3c5e] hover:bg-gray-100 rounded-lg transition-colors">
@@ -113,7 +165,7 @@ export default function NewsPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                         </button>
-                        <button onClick={() => setDeleteConfirm(p.id!)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                        <button onClick={() => setDeleteConfirm(p.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
@@ -154,14 +206,14 @@ export default function NewsPage() {
             </div>
 
             <div className="px-6 py-5 flex flex-col gap-4">
+              {error && <div className="px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-[13px]">{error}</div>}
+
               <FormField label="Title" required>
                 <input className={inputClass} value={form.title} onChange={handleTitleChange} placeholder="e.g. New Engineering Programmes for 2025" />
               </FormField>
-
               <FormField label="Slug" hint="Auto-generated from title — edit if needed">
                 <input className={inputClass} value={form.slug} onChange={set("slug")} placeholder="new-engineering-programmes-2025" />
               </FormField>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField label="Category">
                   <select className={selectClass} value={form.category} onChange={set("category")}>
@@ -173,22 +225,20 @@ export default function NewsPage() {
                   <input className={inputClass} value={form.cover_image_url} onChange={set("cover_image_url")} placeholder="https://..." />
                 </FormField>
               </div>
-
               <FormField label="Excerpt" hint="Short summary shown on news cards (max 160 chars)">
-                <textarea className={textareaClass} rows={2} value={form.excerpt} onChange={set("excerpt")} placeholder="Brief description for the news card..." maxLength={160} />
+                <textarea className={textareaClass} rows={2} value={form.excerpt} onChange={set("excerpt")} placeholder="Brief description..." maxLength={160} />
               </FormField>
-
               <FormField label="Body Content" required>
                 <textarea className={textareaClass} rows={10} value={form.body} onChange={set("body")} placeholder="Full article content..." />
               </FormField>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField label="Publish Date">
                   <input className={inputClass} type="date" value={form.published_at} onChange={set("published_at")} />
                 </FormField>
                 <div className="flex items-end pb-0.5">
                   <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" checked={form.is_published} onChange={setCheck("is_published")}
+                    <input type="checkbox" checked={form.is_published}
+                      onChange={e => setForm(prev => ({ ...prev, is_published: e.target.checked }))}
                       className="w-4 h-4 accent-[#1a3c5e]" />
                     <div>
                       <p className="font-semibold text-gray-700 text-[13.5px]">Publish immediately</p>
@@ -201,8 +251,8 @@ export default function NewsPage() {
 
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button onClick={closeForm} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-gray-600 font-semibold text-[13.5px] hover:bg-gray-50">Cancel</button>
-              <button onClick={handleSave} className="flex-1 py-2.5 bg-[#1a3c5e] text-white font-bold text-[13.5px] rounded-xl hover:bg-[#14304d]">
-                {editing ? "Save Changes" : "Publish Post"}
+              <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 bg-[#1a3c5e] text-white font-bold text-[13.5px] rounded-xl hover:bg-[#14304d] disabled:opacity-60">
+                {saving ? "Saving..." : editing ? "Save Changes" : "Publish Post"}
               </button>
             </div>
           </div>
