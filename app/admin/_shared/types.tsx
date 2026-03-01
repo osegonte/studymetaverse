@@ -14,10 +14,12 @@ export const textareaClass =
 export function FormField({
   label,
   required,
+  hint,
   children,
 }: {
   label: string;
   required?: boolean;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -27,6 +29,7 @@ export function FormField({
         {required && <span className="text-red-400 ml-0.5">*</span>}
       </label>
       {children}
+      {hint && <p className="text-[11.5px] text-gray-400">{hint}</p>}
     </div>
   );
 }
