@@ -33,6 +33,11 @@ export interface University {
   updated_at: string;
 }
 
+export interface RequirementSection {
+  title: string;
+  content: string;
+}
+
 export interface Programme {
   id: string;
   university_id: string;
@@ -56,6 +61,7 @@ export interface Programme {
   preparation_subject_group: PreparationSubjectGroup | null;
   deadline_winter: string | null;
   deadline_summer: string | null;
+  requirements: RequirementSection[] | null;
   is_featured: boolean;
   is_published: boolean;
   created_at: string;

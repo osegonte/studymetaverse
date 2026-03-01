@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { supabase, Programme, University, SubjectArea } from "@/lib/supabase";
+import { supabase, Programme, University, SubjectArea, RequirementSection } from "@/lib/supabase";
 import { FormField, inputClass, selectClass, textareaClass, PREP_GROUPS } from "../_shared/types";
 
 const emptyProgramme = {
@@ -28,6 +28,8 @@ const languageLabels: Record<string, string> = {
   german_english: "German & English",
 };
 
+const emptySection = (): RequirementSection => ({ title: "", content: "" });
+
 export default function ProgrammesPage() {
   const [programmes, setProgrammes] = useState<(Programme & { universities?: { name: string } })[]>([]);
   const [universities, setUniversities] = useState<University[]>([]);
@@ -38,6 +40,7 @@ export default function ProgrammesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Programme | null>(null);
   const [form, setForm] = useState(emptyProgramme);
+  const [requirements, setRequirements] = useState<RequirementSection[]>([]);
   const [search, setSearch] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
@@ -64,7 +67,13 @@ export default function ProgrammesPage() {
     p.title.toLowerCase().includes(search.toLowerCase())
   );
 
-  const openNew = () => { setForm(emptyProgramme); setEditing(null); setShowForm(true); };
+  const openNew = () => {
+    setForm(emptyProgramme);
+    setRequirements([]);
+    setEditing(null);
+    setShowForm(true);
+  };
+
   const openEdit = (p: Programme) => {
     setForm({
       university_id: p.university_id,
@@ -91,10 +100,31 @@ export default function ProgrammesPage() {
       is_featured: p.is_featured,
       is_published: p.is_published,
     });
+    setRequirements(Array.isArray(p.requirements) ? p.requirements : []);
     setEditing(p);
     setShowForm(true);
   };
-  const closeForm = () => { setShowForm(false); setEditing(null); setError(null); };
+
+  const closeForm = () => { setShowForm(false); setEditing(null); setError(null); setRequirements([]); };
+
+  // ── Requirements helpers ─────────────────────────────────────
+  const addSection = () => setRequirements(prev => [...prev, emptySection()]);
+
+  const updateSection = (i: number, field: keyof RequirementSection, value: string) =>
+    setRequirements(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s));
+
+  const removeSection = (i: number) =>
+    setRequirements(prev => prev.filter((_, idx) => idx !== i));
+
+  const moveSection = (i: number, dir: -1 | 1) => {
+    setRequirements(prev => {
+      const next = [...prev];
+      const swap = i + dir;
+      if (swap < 0 || swap >= next.length) return next;
+      [next[i], next[swap]] = [next[swap], next[i]];
+      return next;
+    });
+  };
 
   // ── Save ─────────────────────────────────────────────────────
   async function handleSave() {
@@ -124,6 +154,9 @@ export default function ProgrammesPage() {
       preparation_subject_group: form.preparation_subject_group || null,
       deadline_winter: form.deadline_winter || null,
       deadline_summer: form.deadline_summer || null,
+      requirements: requirements.length > 0
+        ? requirements.filter(s => s.title.trim() || s.content.trim())
+        : null,
       is_featured: form.is_featured,
       is_published: form.is_published,
     };
@@ -404,6 +437,92 @@ export default function ProgrammesPage() {
                     </FormField>
                   ))}
                 </div>
+              </div>
+
+              <hr className="border-gray-100" />
+
+              {/* Requirements sections */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Programme Requirements</h3>
+                    <p className="text-gray-400 text-[11.5px] mt-0.5">Free-form sections shown on the Requirements tab of the programme page.</p>
+                  </div>
+                  <button
+                    onClick={addSection}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-[#1a3c5e] text-[#1a3c5e] text-[12px] font-semibold rounded-lg hover:bg-[#1a3c5e] hover:text-white transition-all"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Section
+                  </button>
+                </div>
+
+                {requirements.length === 0 ? (
+                  <div className="border-2 border-dashed border-gray-200 rounded-xl py-8 text-center">
+                    <p className="text-gray-400 text-[13px]">No requirement sections yet.</p>
+                    <button onClick={addSection} className="mt-2 text-[#1a3c5e] text-[13px] font-semibold hover:underline">
+                      Add your first section
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {requirements.map((section, i) => (
+                      <div key={i} className="border border-gray-200 rounded-xl p-4 flex flex-col gap-3 bg-gray-50/50">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex-1">
+                            Section {i + 1}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => moveSection(i, -1)}
+                              disabled={i === 0}
+                              className="p-1 text-gray-400 hover:text-[#1a3c5e] disabled:opacity-30 disabled:cursor-not-allowed rounded transition-colors"
+                              title="Move up"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => moveSection(i, 1)}
+                              disabled={i === requirements.length - 1}
+                              className="p-1 text-gray-400 hover:text-[#1a3c5e] disabled:opacity-30 disabled:cursor-not-allowed rounded transition-colors"
+                              title="Move down"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => removeSection(i)}
+                              className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors ml-1"
+                              title="Remove section"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                        <input
+                          className={inputClass}
+                          value={section.title}
+                          onChange={e => updateSection(i, "title", e.target.value)}
+                          placeholder="Section title, e.g. Language Requirements"
+                        />
+                        <textarea
+                          className={textareaClass}
+                          rows={3}
+                          value={section.content}
+                          onChange={e => updateSection(i, "content", e.target.value)}
+                          placeholder="Section content..."
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <hr className="border-gray-100" />
