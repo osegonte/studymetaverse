@@ -1,6 +1,22 @@
+"use client";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 import AnimatedSection from "./AnimatedSection";
 
 export default function TrustBar() {
+  const [countLabel, setCountLabel] = useState("3,200+ Programmes");
+
+  useEffect(() => {
+    supabase
+      .from("settings")
+      .select("value")
+      .eq("key", "programmes_count_label")
+      .single()
+      .then(({ data }) => {
+        if (data?.value) setCountLabel(data.value);
+      });
+  }, []);
+
   const items = [
     {
       icon: (
@@ -17,7 +33,7 @@ export default function TrustBar() {
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
         </svg>
       ),
-      title: "3,200+ Programmes",
+      title: countLabel,
       subtitle: "Indexed and updated daily",
     },
     {

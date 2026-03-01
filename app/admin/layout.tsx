@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const navItems = [
   {
@@ -55,9 +55,21 @@ const navItems = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   if (pathname === "/admin/login") return <>{children}</>;
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await fetch("/api/admin/logout", { method: "POST" });
+    } finally {
+      router.push("/admin/login");
+      router.refresh();
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -110,15 +122,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </svg>
             Back to Site
           </Link>
-          <Link
-            href="/admin/login"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-white/40 hover:text-red-400 text-[13px] font-medium transition-colors"
+          <button
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-white/40 hover:text-red-400 text-[13px] font-medium transition-colors disabled:opacity-50"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            Sign Out
-          </Link>
+            {signingOut ? "Signing out..." : "Sign Out"}
+          </button>
         </div>
       </aside>
 

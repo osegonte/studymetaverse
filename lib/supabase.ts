@@ -14,7 +14,16 @@ export type LanguageOfInstruction = "german_only" | "english_only" | "german_eng
 export type StartSemester = "summer" | "winter" | "summer_winter";
 export type NcStatus = "restricted" | "non_restricted";
 export type RequirementStatus = "yes" | "no" | "varied";
-export type PreparationSubjectGroup = "m_kurs" | "t_kurs" | "ti_kurs" | "w_kurs" | "ww_kurs" | "g_kurs" | "s_kurs" | "sw_kurs";
+
+// Fixed: matches PREP_GROUPS values in app/admin/_shared/types.tsx
+export type PreparationSubjectGroup =
+  | "engineering"
+  | "natural_sciences"
+  | "economics"
+  | "humanities"
+  | "medicine"
+  | "arts";
+
 export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
 
 export interface University {

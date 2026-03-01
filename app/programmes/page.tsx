@@ -1,6 +1,7 @@
 "use client";
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, Suspense } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { supabase } from "@/lib/supabase";
@@ -174,14 +175,22 @@ const SUBJECT_AREAS_STATIC = [
   "Medicine","Philosophy","Physics","Psychology","Social Science",
 ];
 
-// ─── Page ─────────────────────────────────────────────────────
-export default function ProgrammesPage() {
+// ─── Page (inner) ─────────────────────────────────────────────
+function ProgrammesPageInner() {
+  const searchParams = useSearchParams();
   const [allProgrammes, setAllProgrammes] = useState<Programme[]>([]);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState("");
+  // Seed query from URL ?q= (e.g. from Hero search)
+  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [sort, setSort] = useState("relevance");
   const [expanded, setExpanded] = useState(false);
+
+  // Keep query in sync if URL param changes (e.g. back/forward navigation)
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q !== null) setQuery(q);
+  }, [searchParams]);
 
   useEffect(() => {
     supabase
@@ -252,6 +261,7 @@ export default function ProgrammesPage() {
             <div className="flex gap-2">
               <div className="flex-1 flex items-center bg-white rounded-xl overflow-hidden">
                 <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && e.currentTarget.blur()}
                   placeholder="Search by subject, university, or city..."
                   className="flex-1 px-5 py-3.5 text-[14px] outline-none placeholder-gray-400 bg-transparent" />
                 {query && (
@@ -260,9 +270,6 @@ export default function ProgrammesPage() {
                   </button>
                 )}
               </div>
-              <button className="px-5 py-3.5 bg-[#1e4d7b] hover:bg-[#14304d] text-white rounded-xl transition-colors">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-              </button>
             </div>
           </div>
         </div>
@@ -314,6 +321,7 @@ export default function ProgrammesPage() {
           <div className="flex items-center justify-between mb-5">
             <p className="text-gray-500 text-[13.5px]">
               <span className="font-extrabold text-[#1a3c5e]">{results.length}</span> programme{results.length !== 1 ? "s" : ""} found
+              {query && <span className="text-gray-400"> for &ldquo;{query}&rdquo;</span>}
             </p>
             <div className="flex items-center gap-2">
               <span className="text-gray-400 text-[12.5px]">Sort:</span>
@@ -355,5 +363,14 @@ export default function ProgrammesPage() {
       </div>
       <Footer />
     </>
+  );
+}
+
+// ─── Suspense wrapper (required for useSearchParams in App Router) ────────────
+export default function ProgrammesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="w-8 h-8 border-2 border-[#1a3c5e] border-t-transparent rounded-full animate-spin" /></div>}>
+      <ProgrammesPageInner />
+    </Suspense>
   );
 }

@@ -1,7 +1,48 @@
 "use client";
 import { motion } from "framer-motion";
+import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+
+const QUICK_TAGS = ["English taught", "Tuition-free", "Bachelor", "Master", "Berlin", "Munich"];
 
 export default function Hero() {
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [tagline, setTagline] = useState("Compare tuition, language requirements, deadlines, and admission chances across 1,000+ programmes.");
+  const [countLabel, setCountLabel] = useState("3,200+ Programmes Available");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    async function fetchSettings() {
+      const { data } = await supabase
+        .from("settings")
+        .select("key, value")
+        .in("key", ["site_tagline", "programmes_count_label"]);
+
+      if (data) {
+        for (const row of data) {
+          if (row.key === "site_tagline" && row.value) setTagline(row.value);
+          if (row.key === "programmes_count_label" && row.value) setCountLabel(row.value);
+        }
+      }
+    }
+    fetchSettings();
+  }, []);
+
+  function handleSearch() {
+    const q = query.trim();
+    if (q) {
+      router.push(`/programmes?q=${encodeURIComponent(q)}`);
+    } else {
+      router.push("/programmes");
+    }
+  }
+
+  function handleTagClick(tag: string) {
+    router.push(`/programmes?q=${encodeURIComponent(tag)}`);
+  }
+
   return (
     <section
       className="relative min-h-screen flex flex-col justify-center items-center text-center px-4 sm:px-6"
@@ -18,7 +59,7 @@ export default function Hero() {
           className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 mb-6"
         >
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <span className="text-white/80 text-sm font-medium">3,200+ Programmes Available</span>
+          <span className="text-white/80 text-sm font-medium">{countLabel}</span>
         </motion.div>
 
         <motion.h1
@@ -38,7 +79,7 @@ export default function Hero() {
           transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
           className="text-white/70 text-base sm:text-lg md:text-xl mb-8 max-w-xl mx-auto leading-relaxed"
         >
-          Compare tuition, language requirements, deadlines, and admission chances across 1,000+ programmes.
+          {tagline}
         </motion.p>
 
         <motion.div
@@ -51,11 +92,25 @@ export default function Hero() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
           </svg>
           <input
+            ref={inputRef}
             type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleSearch()}
             placeholder="Search by subject, university, or city..."
             className="flex-1 px-4 py-4 text-gray-800 text-[15px] outline-none placeholder-gray-400 bg-transparent min-w-0"
           />
-          <button className="m-1.5 px-5 py-3 bg-[#1a3c5e] text-white font-semibold text-sm rounded-lg hover:bg-[#14304d] transition-colors flex-shrink-0">
+          {query && (
+            <button onClick={() => setQuery("")} className="pr-2 text-gray-300 hover:text-gray-500">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+          <button
+            onClick={handleSearch}
+            className="m-1.5 px-5 py-3 bg-[#1a3c5e] text-white font-semibold text-sm rounded-lg hover:bg-[#14304d] transition-colors flex-shrink-0"
+          >
             Search
           </button>
         </motion.div>
@@ -66,8 +121,12 @@ export default function Hero() {
           transition={{ duration: 0.6, ease: "easeOut", delay: 0.4 }}
           className="flex flex-wrap justify-center gap-2"
         >
-          {["English taught", "Tuition-free", "Bachelor", "Master", "Berlin", "Munich"].map((tag) => (
-            <button key={tag} className="px-4 py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white/80 text-sm rounded-full transition-colors">
+          {QUICK_TAGS.map((tag) => (
+            <button
+              key={tag}
+              onClick={() => handleTagClick(tag)}
+              className="px-4 py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white/80 text-sm rounded-full transition-colors"
+            >
               {tag}
             </button>
           ))}

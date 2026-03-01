@@ -1,9 +1,10 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function AdminLogin() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -13,14 +14,30 @@ export default function AdminLogin() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    // TODO: wire to Supabase admin_users table
-    // For now, placeholder check
-    if (email === "admin@studymetaverse.de" && password === "admin") {
-      router.push("/admin");
-    } else {
-      setError("Invalid credentials. Please try again.");
+
+    try {
+      const res = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? "Login failed. Please try again.");
+        return;
+      }
+
+      // Redirect to the page the user was trying to reach, or /admin
+      const next = searchParams.get("next") ?? "/admin";
+      router.push(next);
+      router.refresh();
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -46,23 +63,29 @@ export default function AdminLogin() {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>
-              <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Email</label>
+              <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                Email
+              </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="email"
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-[14px] text-gray-800 outline-none focus:border-[#1a3c5e] focus:ring-2 focus:ring-[#1a3c5e]/10 transition-all"
                 placeholder="admin@studymetaverse.de"
               />
             </div>
             <div>
-              <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Password</label>
+              <label className="block text-[12px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                Password
+              </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-[14px] text-gray-800 outline-none focus:border-[#1a3c5e] focus:ring-2 focus:ring-[#1a3c5e]/10 transition-all"
                 placeholder="••••••••"
               />
@@ -83,5 +106,13 @@ export default function AdminLogin() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminLogin() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
