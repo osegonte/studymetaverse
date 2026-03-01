@@ -10,9 +10,15 @@ interface SettingRow {
   description: string | null;
 }
 
+const CURRENCY_OPTIONS = ["EUR", "USD", "GBP", "NGN"];
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  EUR: "€", USD: "$", GBP: "£", NGN: "₦",
+};
+
 const META: Record<string, { label: string; type: "text" | "number" | "select"; options?: string[] }> = {
-  match_report_price:     { label: "Match Report Price (EUR)",  type: "number" },
-  match_report_currency:  { label: "Currency",                  type: "select", options: ["EUR", "USD", "GBP"] },
+  match_report_price:     { label: "Match Report Price",        type: "number" },
+  match_report_currency:  { label: "Currency",                  type: "select", options: CURRENCY_OPTIONS },
   programmes_count_label: { label: "Programmes Count Label",    type: "text" },
   site_tagline:           { label: "Hero Tagline",              type: "text" },
   stripe_mode:            { label: "Stripe Mode",               type: "select", options: ["test", "live"] },
@@ -40,6 +46,11 @@ export default function SettingsPage() {
     setSaved(false);
   };
 
+  const getCurrencySymbol = () => {
+    const currencySetting = settings.find(s => s.key === "match_report_currency");
+    return CURRENCY_SYMBOLS[currencySetting?.value ?? "EUR"] ?? currencySetting?.value ?? "€";
+  };
+
   async function handleSave() {
     setSaving(true);
     setError(null);
@@ -50,6 +61,8 @@ export default function SettingsPage() {
     setSaving(false);
   }
 
+  const priceSetting = settings.find(s => s.key === "match_report_price");
+
   return (
     <div className="max-w-3xl mx-auto">
       <div className="mb-6">
@@ -58,6 +71,23 @@ export default function SettingsPage() {
       </div>
 
       {error && <div className="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-[13px]">{error}</div>}
+
+      {/* Price preview */}
+      {priceSetting && (
+        <div className="mb-4 px-5 py-4 bg-[#1a3c5e]/5 border border-[#1a3c5e]/10 rounded-2xl flex items-center gap-3">
+          <div className="w-9 h-9 bg-[#1a3c5e] rounded-xl flex items-center justify-center flex-shrink-0">
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-[12px] text-gray-400 font-medium">Match Report price shown to users</p>
+            <p className="text-[18px] font-extrabold text-[#1a3c5e]">
+              {getCurrencySymbol()}{priceSetting.value}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
         {loading ? (
@@ -70,17 +100,23 @@ export default function SettingsPage() {
             {settings.map((s) => {
               const meta = META[s.key];
               return (
-                <div key={s.key} className="px-6 py-5 flex flex-col sm:flex-row sm:items-start gap-4">
-                  <div className="sm:w-64 flex-shrink-0">
+                <div key={s.key} className="px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-3">
+                  <div className="sm:w-56 flex-shrink-0">
                     <p className="font-semibold text-gray-800 text-[13.5px]">{meta?.label ?? s.key}</p>
-                    <p className="text-gray-400 text-[12px] mt-0.5 leading-relaxed">{s.description}</p>
+                    {s.description && <p className="text-gray-400 text-[12px] mt-0.5 leading-relaxed">{s.description}</p>}
                     <p className="text-gray-300 text-[11px] font-mono mt-1">{s.key}</p>
                   </div>
                   <div className="flex-1">
                     {meta?.type === "select" ? (
                       <select value={s.value} onChange={e => updateValue(s.key, e.target.value)}
                         className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-[13.5px] text-gray-800 outline-none focus:border-[#1a3c5e] focus:ring-2 focus:ring-[#1a3c5e]/10 transition-all bg-white">
-                        {meta.options?.map(o => <option key={o} value={o}>{o}</option>)}
+                        {meta.options?.map(o => (
+                          <option key={o} value={o}>
+                            {s.key === "match_report_currency"
+                              ? `${o} (${CURRENCY_SYMBOLS[o] ?? o})`
+                              : o}
+                          </option>
+                        ))}
                       </select>
                     ) : (
                       <input type={meta?.type ?? "text"} value={s.value}
@@ -126,9 +162,9 @@ export default function SettingsPage() {
             { key: "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",   hint: "Public key — safe to expose" },
             { key: "STRIPE_WEBHOOK_SECRET",                hint: "From Stripe Dashboard > Webhooks" },
           ].map(env => (
-            <div key={env.key} className="flex items-start gap-3">
-              <code className="text-[12px] font-mono text-[#1a3c5e] bg-blue-50 px-2.5 py-1 rounded-lg whitespace-nowrap">{env.key}</code>
-              <p className="text-gray-400 text-[12px] mt-1">{env.hint}</p>
+            <div key={env.key} className="flex flex-col sm:flex-row sm:items-start gap-2">
+              <code className="text-[12px] font-mono text-[#1a3c5e] bg-blue-50 px-2.5 py-1 rounded-lg whitespace-nowrap w-fit">{env.key}</code>
+              <p className="text-gray-400 text-[12px] sm:mt-1">{env.hint}</p>
             </div>
           ))}
         </div>

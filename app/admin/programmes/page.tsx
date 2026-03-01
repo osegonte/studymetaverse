@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import {
-  supabase, Programme, University, SubjectArea, RequirementSection,
+  supabase, Programme, University, RequirementSection,
   DegreeType, StudyMode, LanguageOfInstruction, StartSemester, NcStatus, RequirementStatus,
 } from "@/lib/supabase";
 import { FormField, inputClass, selectClass, textareaClass, PREP_GROUPS } from "../_shared/types";
@@ -10,7 +10,7 @@ interface FormState {
   university_id: string;
   title: string;
   degree_type: DegreeType;
-  subject_area_id: string;
+  subject_area: string;
   study_mode: StudyMode;
   language_of_instruction: LanguageOfInstruction;
   std_period_semesters: string;
@@ -34,7 +34,7 @@ interface FormState {
 
 const emptyProgramme: FormState = {
   university_id: "", title: "", degree_type: "masters",
-  subject_area_id: "", study_mode: "fully_onsite",
+  subject_area: "", study_mode: "fully_onsite",
   language_of_instruction: "english_only", std_period_semesters: "",
   start_semester: "winter", program_details: "",
   nc_status: "non_restricted", ects_required: "0",
@@ -46,15 +46,9 @@ const emptyProgramme: FormState = {
 };
 
 const degreeLabels: Record<string, string> = {
-  preparatory_course: "Preparatory Course",
-  bachelors: "Bachelor's",
-  masters: "Master's",
-};
-
-const languageLabels: Record<string, string> = {
-  german_only: "German Only",
-  english_only: "English Only",
-  german_english: "German & English",
+  preparatory_course: "Prep",
+  bachelors: "BSc",
+  masters: "MSc",
 };
 
 const emptySection = (): RequirementSection => ({ title: "", content: "" });
@@ -62,7 +56,6 @@ const emptySection = (): RequirementSection => ({ title: "", content: "" });
 export default function ProgrammesPage() {
   const [programmes, setProgrammes] = useState<(Programme & { universities?: { name: string } })[]>([]);
   const [universities, setUniversities] = useState<University[]>([]);
-  const [subjectAreas, setSubjectAreas] = useState<SubjectArea[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,26 +65,81 @@ export default function ProgrammesPage() {
   const [requirements, setRequirements] = useState<RequirementSection[]>([]);
   const [search, setSearch] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
+  const [importUrl, setImportUrl] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   useEffect(() => { fetchAll(); }, []);
 
   async function fetchAll() {
     setLoading(true);
-    const [progRes, uniRes, saRes] = await Promise.all([
+    const [progRes, uniRes] = await Promise.all([
       supabase.from("programs").select("*, universities(name)").order("title"),
       supabase.from("universities").select("*").order("name"),
-      supabase.from("subject_areas").select("*").order("name"),
     ]);
     if (progRes.error) setError(progRes.error.message);
     else setProgrammes(progRes.data ?? []);
     if (uniRes.data) setUniversities(uniRes.data);
-    if (saRes.data) setSubjectAreas(saRes.data);
     setLoading(false);
   }
 
   const filtered = programmes.filter(p =>
     p.title.toLowerCase().includes(search.toLowerCase())
   );
+
+  const featuredCount = programmes.filter(p => p.is_featured).length;
+
+
+  async function handleImport() {
+    if (!importUrl.trim()) return;
+    setImporting(true);
+    setImportError(null);
+    try {
+      const res = await fetch("/api/admin/import-programme", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: importUrl.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        setImportError(json.error ?? "Failed to extract programme data.");
+        return;
+      }
+      const d = json.data;
+      // Try to match university by name
+      const matchedUni = universities.find(u =>
+        u.name.toLowerCase().includes((d.university_name ?? "").toLowerCase().split(" ")[0]?.toLowerCase())
+      );
+      setForm({
+        ...emptyProgramme,
+        title: d.title ?? "",
+        degree_type: d.degree_type ?? "masters",
+        language_of_instruction: d.language_of_instruction ?? "english_only",
+        study_mode: d.study_mode ?? "fully_onsite",
+        start_semester: d.start_semester ?? "winter",
+        std_period_semesters: d.std_period_semesters ? String(d.std_period_semesters) : "",
+        program_details: d.program_details ?? "",
+        nc_status: d.nc_status ?? "non_restricted",
+        ects_required: d.ects_required ? String(d.ects_required) : "0",
+        tuition_fee: d.tuition_fee ?? false,
+        tuition_fee_amount: d.tuition_fee_amount ? String(d.tuition_fee_amount) : "",
+        deadline_winter: d.deadline_winter ?? "",
+        deadline_summer: d.deadline_summer ?? "",
+        subject_area: d.subject_area ?? "",
+        university_id: matchedUni?.id ?? "",
+      });
+      setRequirements([]);
+      setEditing(null);
+      setShowImport(false);
+      setImportUrl("");
+      setShowForm(true);
+    } catch {
+      setImportError("Something went wrong. Please try again.");
+    } finally {
+      setImporting(false);
+    }
+  }
 
   const openNew = () => {
     setForm(emptyProgramme);
@@ -105,7 +153,7 @@ export default function ProgrammesPage() {
       university_id: p.university_id,
       title: p.title,
       degree_type: p.degree_type,
-      subject_area_id: String(p.subject_area_id ?? ""),
+      subject_area: (p as any).subject_area ?? "",
       study_mode: p.study_mode,
       language_of_instruction: p.language_of_instruction,
       std_period_semesters: String(p.std_period_semesters ?? ""),
@@ -138,7 +186,6 @@ export default function ProgrammesPage() {
     setRequirements([]);
   };
 
-  // ── Requirements helpers ─────────────────────────────────────
   const addSection = () => setRequirements(prev => [...prev, emptySection()]);
 
   const updateSection = (i: number, field: keyof RequirementSection, value: string) =>
@@ -157,9 +204,11 @@ export default function ProgrammesPage() {
     });
   };
 
-  // ── Save ─────────────────────────────────────────────────────
   async function handleSave() {
-    if (!form.title || !form.university_id) return;
+    if (!form.title || !form.university_id) {
+      setError("Programme title and university are required.");
+      return;
+    }
     setSaving(true);
     setError(null);
 
@@ -167,7 +216,7 @@ export default function ProgrammesPage() {
       university_id: form.university_id,
       title: form.title,
       degree_type: form.degree_type,
-      subject_area_id: form.subject_area_id ? parseInt(form.subject_area_id) : null,
+      subject_area: form.subject_area || null,
       study_mode: form.study_mode,
       language_of_instruction: form.language_of_instruction,
       std_period_semesters: form.std_period_semesters ? parseInt(form.std_period_semesters) : null,
@@ -223,18 +272,30 @@ export default function ProgrammesPage() {
   const isPrep = form.degree_type === "preparatory_course";
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="w-full max-w-6xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-extrabold text-[#1a3c5e] tracking-tight">Programmes</h1>
-          <p className="text-gray-400 text-sm mt-0.5">{programmes.length} programmes in database</p>
+          <p className="text-gray-400 text-sm mt-0.5">
+            {programmes.length} total · <span className="text-yellow-500 font-medium">{featuredCount} featured</span>
+          </p>
         </div>
-        <button onClick={openNew} className="flex items-center gap-2 px-4 py-2.5 bg-[#1a3c5e] text-white font-semibold text-[13.5px] rounded-xl hover:bg-[#14304d] transition-colors shadow-sm">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          Add Programme
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => { setShowImport(true); setImportError(null); setImportUrl(""); }}
+            className="flex items-center gap-2 px-4 py-2.5 border-2 border-[#1a3c5e] text-[#1a3c5e] font-semibold text-[13.5px] rounded-xl hover:bg-[#1a3c5e] hover:text-white transition-all w-fit">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+            Import from URL
+          </button>
+          <button onClick={openNew} className="flex items-center gap-2 px-4 py-2.5 bg-[#1a3c5e] text-white font-semibold text-[13.5px] rounded-xl hover:bg-[#14304d] transition-colors shadow-sm w-fit">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Add Programme
+          </button>
+        </div>
       </div>
 
       {error && !showForm && (
@@ -261,48 +322,51 @@ export default function ProgrammesPage() {
             {!search && <button onClick={openNew} className="mt-3 text-[#1a3c5e] text-sm font-semibold hover:underline">Add your first programme</button>}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full min-w-[600px] text-left">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  {["Title", "University", "Degree", "Language", "Tuition", "Featured", "Status", ""].map(h => (
-                    <th key={h} className="px-5 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}
+                  <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Title</th>
+                  <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider hidden sm:table-cell">University</th>
+                  <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Degree</th>
+                  <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider hidden md:table-cell">Tuition</th>
+                  <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">★</th>
+                  <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtered.map(p => (
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3.5 font-semibold text-[#1a3c5e] text-[13.5px] max-w-[200px]">
-                      <p className="truncate">{p.title}</p>
+                    <td className="px-4 py-3 font-semibold text-[#1a3c5e] text-[13px]">
+                      <p className="truncate max-w-[140px] sm:max-w-[200px]">{p.title}</p>
                     </td>
-                    <td className="px-5 py-3.5 text-gray-500 text-[13px] max-w-[160px]">
-                      <p className="truncate">{(p as any).universities?.name ?? "—"}</p>
+                    <td className="px-4 py-3 text-gray-500 text-[12px] hidden sm:table-cell">
+                      <p className="truncate max-w-[140px]">{(p as any).universities?.name ?? "—"}</p>
                     </td>
-                    <td className="px-5 py-3.5">
-                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#1a3c5e]/10 text-[#1a3c5e]">
+                    <td className="px-4 py-3">
+                      <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-[#1a3c5e]/10 text-[#1a3c5e] whitespace-nowrap">
                         {degreeLabels[p.degree_type]}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-gray-500 text-[13px]">{languageLabels[p.language_of_instruction]}</td>
-                    <td className="px-5 py-3.5">
-                      <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${p.tuition_fee ? "bg-orange-50 text-orange-600" : "bg-green-50 text-green-600"}`}>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${p.tuition_fee ? "bg-orange-50 text-orange-600" : "bg-green-50 text-green-600"}`}>
                         {p.tuition_fee ? "Paid" : "Free"}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="px-4 py-3">
                       {p.is_featured
                         ? <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                         : <span className="text-gray-300 text-sm">—</span>
                       }
                     </td>
-                    <td className="px-5 py-3.5">
-                      <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${p.is_published ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-400"}`}>
-                        {p.is_published ? "Published" : "Draft"}
+                    <td className="px-4 py-3">
+                      <span className={`text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${p.is_published ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-400"}`}>
+                        {p.is_published ? "Live" : "Draft"}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2 justify-end">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1 justify-end">
                         <button onClick={() => openEdit(p)} className="p-1.5 text-gray-400 hover:text-[#1a3c5e] hover:bg-gray-100 rounded-lg transition-colors">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -323,6 +387,57 @@ export default function ProgrammesPage() {
         )}
       </div>
 
+      {/* Import from URL modal */}
+      {showImport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/40">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-extrabold text-[#1a3c5e] text-lg">Import Programme from URL</h3>
+                <p className="text-gray-400 text-[12.5px] mt-0.5">Paste the direct link to a university programme page.</p>
+              </div>
+              <button onClick={() => setShowImport(false)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-4 text-[12.5px] text-blue-700 font-medium">
+              AI will read the page and pre-fill the form. You review everything before saving.
+            </div>
+
+            <input
+              type="url"
+              value={importUrl}
+              onChange={e => setImportUrl(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleImport()}
+              placeholder="https://www.th-koeln.de/studium/informatik-master..."
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-[13.5px] outline-none focus:border-[#1a3c5e] focus:ring-2 focus:ring-[#1a3c5e]/10 transition-all mb-3"
+            />
+
+            {importError && (
+              <p className="text-red-500 text-[13px] bg-red-50 rounded-lg px-3 py-2 mb-3">{importError}</p>
+            )}
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowImport(false)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-gray-600 font-semibold text-sm">
+                Cancel
+              </button>
+              <button onClick={handleImport} disabled={importing || !importUrl.trim()}
+                className="flex-1 py-2.5 bg-[#1a3c5e] text-white rounded-xl font-bold text-sm disabled:opacity-60 flex items-center justify-center gap-2">
+                {importing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Extracting...
+                  </>
+                ) : "Extract & Pre-fill"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirm modal */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/40">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
@@ -336,10 +451,11 @@ export default function ProgrammesPage() {
         </div>
       )}
 
+      {/* Add/Edit form modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/40">
-          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4 bg-black/40">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-3xl max-h-[95vh] sm:max-h-[92vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
               <h2 className="font-extrabold text-[#1a3c5e] text-lg">{editing ? "Edit Programme" : "Add Programme"}</h2>
               <button onClick={closeForm} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -348,7 +464,7 @@ export default function ProgrammesPage() {
               </button>
             </div>
 
-            <div className="px-6 py-5 flex flex-col gap-5">
+            <div className="px-5 py-5 flex flex-col gap-5">
               {error && <div className="px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-[13px]">{error}</div>}
 
               {/* Basic Info */}
@@ -375,10 +491,7 @@ export default function ProgrammesPage() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField label="Subject Area">
-                      <select className={selectClass} value={form.subject_area_id} onChange={set("subject_area_id")}>
-                        <option value="">Select subject area...</option>
-                        {subjectAreas.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
-                      </select>
+                      <input className={inputClass} value={form.subject_area} onChange={set("subject_area")} placeholder="e.g. Computer Science, Business, Engineering" />
                     </FormField>
                     <FormField label="Duration (Semesters)">
                       <input className={inputClass} type="number" value={form.std_period_semesters} onChange={set("std_period_semesters")} placeholder="e.g. 4" />
@@ -457,7 +570,7 @@ export default function ProgrammesPage() {
                     </select>
                   </FormField>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+                <div className="grid grid-cols-2 gap-4 mt-4">
                   {(["motiv_required", "test_required", "interview", "modul_required"] as const).map((field) => (
                     <FormField key={field} label={
                       field === "motiv_required" ? "Motivation Letter"
@@ -482,61 +595,54 @@ export default function ProgrammesPage() {
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Programme Requirements</h3>
-                    <p className="text-gray-400 text-[11.5px] mt-0.5">Free-form sections shown on the Requirements tab of the programme page.</p>
+                    <p className="text-gray-400 text-[11.5px] mt-0.5">Free-form sections shown on the programme detail page.</p>
                   </div>
-                  <button
-                    onClick={addSection}
-                    className="flex items-center gap-1.5 px-3 py-1.5 border border-[#1a3c5e] text-[#1a3c5e] text-[12px] font-semibold rounded-lg hover:bg-[#1a3c5e] hover:text-white transition-all"
-                  >
+                  <button onClick={addSection}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-[#1a3c5e] text-[#1a3c5e] text-[12px] font-semibold rounded-lg hover:bg-[#1a3c5e] hover:text-white transition-all">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                     </svg>
                     Add Section
                   </button>
                 </div>
-
                 {requirements.length === 0 ? (
                   <div className="border-2 border-dashed border-gray-200 rounded-xl py-8 text-center">
                     <p className="text-gray-400 text-[13px]">No requirement sections yet.</p>
-                    <button onClick={addSection} className="mt-2 text-[#1a3c5e] text-[13px] font-semibold hover:underline">
-                      Add your first section
-                    </button>
+                    <button onClick={addSection} className="mt-2 text-[#1a3c5e] text-[13px] font-semibold hover:underline">Add your first section</button>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-2">
                     {requirements.map((section, i) => (
-                      <div key={i} className="border border-gray-200 rounded-xl p-4 flex flex-col gap-3 bg-gray-50/50">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex-1">
+                      <div key={i} className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                        {/* Section header bar */}
+                        <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+                          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                             Section {i + 1}
                           </span>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-0.5">
                             <button onClick={() => moveSection(i, -1)} disabled={i === 0}
-                              className="p-1 text-gray-400 hover:text-[#1a3c5e] disabled:opacity-30 disabled:cursor-not-allowed rounded transition-colors">
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-                              </svg>
+                              className="p-1.5 text-gray-400 hover:text-[#1a3c5e] hover:bg-white disabled:opacity-30 rounded-lg transition-colors">
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
                             </button>
                             <button onClick={() => moveSection(i, 1)} disabled={i === requirements.length - 1}
-                              className="p-1 text-gray-400 hover:text-[#1a3c5e] disabled:opacity-30 disabled:cursor-not-allowed rounded transition-colors">
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                              </svg>
+                              className="p-1.5 text-gray-400 hover:text-[#1a3c5e] hover:bg-white disabled:opacity-30 rounded-lg transition-colors">
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                             </button>
-                            <button onClick={() => removeSection(i)}
-                              className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors ml-1">
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                              </svg>
+                            <div className="w-px h-4 bg-gray-200 mx-1" />
+                            <button onClick={() => removeSection(i)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                           </div>
                         </div>
-                        <input className={inputClass} value={section.title}
-                          onChange={e => updateSection(i, "title", e.target.value)}
-                          placeholder="Section title, e.g. Language Requirements" />
-                        <textarea className={textareaClass} rows={3} value={section.content}
-                          onChange={e => updateSection(i, "content", e.target.value)}
-                          placeholder="Section content..." />
+                        {/* Section body */}
+                        <div className="p-4 flex flex-col gap-3">
+                          <input className={inputClass} value={section.title}
+                            onChange={e => updateSection(i, "title", e.target.value)}
+                            placeholder="Section title, e.g. Language Requirements" />
+                          <textarea className={textareaClass} rows={3} value={section.content}
+                            onChange={e => updateSection(i, "content", e.target.value)}
+                            placeholder="Section content..." />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -580,10 +686,10 @@ export default function ProgrammesPage() {
                 <div className="flex flex-col gap-3">
                   {([
                     { field: "is_published" as const, label: "Published", desc: "Visible to users on the programmes page" },
-                    { field: "is_featured" as const, label: "Featured on Homepage", desc: "Shows in the Featured Programmes section" },
+                    { field: "is_featured" as const, label: "Featured on Homepage", desc: `Shows in the Featured section · ${featuredCount} currently featured` },
                   ]).map(({ field, label, desc }) => (
-                    <label key={field} className="flex items-center gap-3 cursor-pointer select-none">
-                      <input type="checkbox" checked={form[field] as boolean} onChange={setCheck(field)} className="w-4 h-4 accent-[#1a3c5e]" />
+                    <label key={field} className="flex items-start gap-3 cursor-pointer select-none">
+                      <input type="checkbox" checked={form[field] as boolean} onChange={setCheck(field)} className="w-4 h-4 accent-[#1a3c5e] mt-0.5" />
                       <div>
                         <p className="font-semibold text-gray-700 text-[13.5px]">{label}</p>
                         <p className="text-gray-400 text-[12px]">{desc}</p>
@@ -594,7 +700,7 @@ export default function ProgrammesPage() {
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
+            <div className="px-5 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button onClick={closeForm} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-gray-600 font-semibold text-[13.5px] hover:bg-gray-50">Cancel</button>
               <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 bg-[#1a3c5e] text-white font-bold text-[13.5px] rounded-xl hover:bg-[#14304d] disabled:opacity-60">
                 {saving ? "Saving..." : editing ? "Save Changes" : "Add Programme"}

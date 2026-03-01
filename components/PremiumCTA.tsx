@@ -2,22 +2,33 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  EUR: "€", USD: "$", GBP: "£", NGN: "₦",
+};
+
 export default function PremiumCTA() {
   const [price, setPrice] = useState("29");
+  const [currency, setCurrency] = useState("EUR");
 
   useEffect(() => {
     supabase
       .from("settings")
-      .select("value")
-      .eq("key", "match_report_price")
-      .single()
-      .then(({ data }) => { if (data) setPrice(data.value); });
+      .select("key, value")
+      .in("key", ["match_report_price", "match_report_currency"])
+      .then(({ data }) => {
+        if (!data) return;
+        const priceRow = data.find(s => s.key === "match_report_price");
+        const currencyRow = data.find(s => s.key === "match_report_currency");
+        if (priceRow) setPrice(priceRow.value);
+        if (currencyRow) setCurrency(currencyRow.value);
+      });
   }, []);
+
+  const symbol = CURRENCY_SYMBOLS[currency] ?? currency;
 
   return (
     <section className="relative overflow-hidden bg-[#0f2942] py-20 px-4">
 
-      {/* Decorative circle */}
       <div className="absolute top-[-80px] right-[-80px] w-[400px] h-[400px] rounded-full bg-[#1a3c5e] opacity-40 pointer-events-none" />
 
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-12">
@@ -28,7 +39,7 @@ export default function PremiumCTA() {
             Expert Analysis
           </span>
           <h2 className="text-4xl font-extrabold text-white leading-tight tracking-tight mb-4">
-            Get Your Personalized Match<br />Report for just €{price}
+            Get Your Personalized Match<br />Report for just {symbol}{price}
           </h2>
           <p className="text-white/60 text-[15px] font-medium mb-8 max-w-md leading-relaxed">
             Stop guessing your chances. Get a data-backed report on your admission probability for any programme in Germany.
@@ -61,7 +72,7 @@ export default function PremiumCTA() {
           {/* Price badge */}
           <div className="absolute -top-2 right-4 md:right-16 w-20 h-20 bg-yellow-400 rounded-full flex flex-col items-center justify-center z-10 shadow-2xl ring-4 ring-yellow-300/50">
             <span className="text-[9px] font-bold text-yellow-900 uppercase tracking-wide">Only</span>
-            <span className="text-[18px] font-extrabold text-yellow-900">€{price}</span>
+            <span className="text-[18px] font-extrabold text-yellow-900">{symbol}{price}</span>
           </div>
 
           {/* Tilted card */}

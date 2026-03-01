@@ -6,7 +6,6 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Hardcoded admin emails — change here or move to env var later
 const ADMIN_EMAILS = ["studymetaverses@gmail.com", "segohopo@gmail.com"];
 
 export async function POST(req: NextRequest) {
@@ -40,7 +39,7 @@ export async function POST(req: NextRequest) {
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
-        maxAge: 60 * 60, // 1 hour
+        maxAge: 60 * 60,
       });
     }
 

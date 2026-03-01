@@ -31,7 +31,7 @@ interface ProgrammeDetail {
   deadline_winter: string | null;
   deadline_summer: string | null;
   requirements: RequirementSection[] | null;
-  subject_areas: { name: string } | null;
+  subject_area: string | null;
   universities: {
     id: string;
     name: string;
@@ -45,6 +45,10 @@ interface ProgrammeDetail {
 }
 
 type Tab = "about" | "admission" | "requirements";
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  EUR: "€", USD: "$", GBP: "£", NGN: "₦",
+};
 
 const reqLabel: Record<string, { label: string; color: string }> = {
   yes:    { label: "Required",     color: "text-red-500 bg-red-50" },
@@ -76,6 +80,7 @@ export default function ProgrammeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [p, setP] = useState<ProgrammeDetail | null>(null);
   const [price, setPrice] = useState("29");
+  const [currency, setCurrency] = useState("EUR");
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("about");
@@ -85,7 +90,7 @@ export default function ProgrammeDetailPage() {
     async function load() {
       if (!id) return;
       try {
-        const [progRes, priceRes] = await Promise.all([
+        const [progRes, settingsRes] = await Promise.all([
           supabase
             .from("programs")
             .select(`
@@ -94,17 +99,15 @@ export default function ProgrammeDetailPage() {
               nc_status, ects_required, motiv_required, test_required,
               interview, modul_required, moiletter_accepted,
               tuition_fee, tuition_fee_amount, deadline_winter, deadline_summer,
-              requirements,
-              subject_areas(name),
+              requirements, subject_area,
               universities(id, name, city, address, student_count, ranking, website_url, image_url)
             `)
             .eq("id", id)
             .single(),
           supabase
             .from("settings")
-            .select("value")
-            .eq("key", "match_report_price")
-            .single(),
+            .select("key, value")
+            .in("key", ["match_report_price", "match_report_currency"]),
         ]);
 
         if (progRes.error) {
@@ -112,8 +115,14 @@ export default function ProgrammeDetailPage() {
         } else {
           setP(progRes.data as unknown as ProgrammeDetail);
         }
-        if (priceRes.data) setPrice(priceRes.data.value);
-      } catch (err) {
+
+        if (settingsRes.data) {
+          const priceRow = settingsRes.data.find(s => s.key === "match_report_price");
+          const currencyRow = settingsRes.data.find(s => s.key === "match_report_currency");
+          if (priceRow) setPrice(priceRow.value);
+          if (currencyRow) setCurrency(currencyRow.value);
+        }
+      } catch {
         setFetchError("Something went wrong loading this programme.");
       } finally {
         setLoading(false);
@@ -127,6 +136,8 @@ export default function ProgrammeDetailPage() {
     { key: "admission",    label: "Admission" },
     { key: "requirements", label: "Requirements" },
   ];
+
+  const currencySymbol = CURRENCY_SYMBOLS[currency] ?? currency;
 
   if (loading) {
     return (
@@ -228,7 +239,7 @@ export default function ProgrammeDetailPage() {
                 },
                 {
                   label: "Tuition / Semester",
-                  value: p.tuition_fee ? (p.tuition_fee_amount ? `€${Number(p.tuition_fee_amount).toLocaleString()}` : "Paid") : "€0",
+                  value: p.tuition_fee ? (p.tuition_fee_amount ? `${currencySymbol}${Number(p.tuition_fee_amount).toLocaleString()}` : "Paid") : `${currencySymbol}0`,
                   icon: (
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -291,7 +302,7 @@ export default function ProgrammeDetailPage() {
                         {[
                           { label: "Start Semester", value: p.start_semester.replace("_", " & ").replace(/\b\w/g, c => c.toUpperCase()) },
                           { label: "Study Mode",     value: modeLabel[p.study_mode] ?? p.study_mode },
-                          { label: "Subject Area",   value: p.subject_areas?.name ?? "—" },
+                          { label: "Subject Area",   value: p.subject_area ?? "—" },
                           { label: "Admission",      value: p.nc_status === "non_restricted" ? "Open (ohne NC)" : "Restricted (NC)" },
                           { label: "MOI Letter",     value: p.moiletter_accepted ? "Accepted" : "Not Accepted" },
                         ].map(item => (
@@ -344,7 +355,7 @@ export default function ProgrammeDetailPage() {
                     </div>
                   )}
 
-                  {/* REQUIREMENTS — free-form sections */}
+                  {/* REQUIREMENTS */}
                   {tab === "requirements" && (
                     <div>
                       <h2 className="text-lg font-extrabold text-[#1a3c5e] mb-6">Programme Requirements</h2>
@@ -354,7 +365,7 @@ export default function ProgrammeDetailPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                           </svg>
                           <p className="text-gray-400 text-[14px]">No requirements added yet.</p>
-                          <p className="text-gray-300 text-[12px] mt-1">The university admin can add these in the admin panel.</p>
+                          <p className="text-gray-300 text-[12px] mt-1">Add these from the admin panel.</p>
                         </div>
                       ) : (
                         <div className="flex flex-col divide-y divide-gray-100">
@@ -386,7 +397,7 @@ export default function ProgrammeDetailPage() {
                   Check your admission chances with a personalized evaluation based on your academic profile.
                 </p>
                 <div className="flex items-baseline gap-1.5 mb-4">
-                  <span className="text-3xl font-extrabold">€{price}</span>
+                  <span className="text-3xl font-extrabold">{currencySymbol}{price}</span>
                   <span className="text-white/50 text-[12px]">one-time</span>
                 </div>
                 <a href="/match-report"
@@ -427,7 +438,6 @@ export default function ProgrammeDetailPage() {
                 </div>
               </div>
 
-              {/* University quick info */}
               {uni && (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                   <h3 className="font-extrabold text-[#1a3c5e] text-[14px] mb-3">University</h3>

@@ -59,6 +59,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
+  // The /admin/login route is deprecated — middleware redirects it to /signin.
+  // This guard is kept as a safety net only.
   if (pathname === "/admin/login") return <>{children}</>;
 
   async function handleSignOut() {
@@ -66,7 +68,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     try {
       await fetch("/api/admin/logout", { method: "POST" });
     } finally {
-      router.push("/admin/login");
+      // Go directly to /signin — no need to hit /admin/login first
+      router.push("/signin");
       router.refresh();
     }
   }
