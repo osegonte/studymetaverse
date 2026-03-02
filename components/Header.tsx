@@ -2,8 +2,10 @@
 import { useState, useEffect } from "react";
 
 const navLinks = [
-  { label: "Programmes", href: "/programmes" },
-  { label: "Match Report", href: "/match-report" },
+  { label: "Programmes",        href: "/programmes" },
+  { label: "Match Report",      href: "/match-report" },
+  { label: "Talk to an Expert", href: "/talk-to-an-expert" },
+  { label: "Blog",              href: "/blog" },
 ];
 
 export default function Header() {

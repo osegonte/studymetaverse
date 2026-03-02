@@ -24,26 +24,52 @@ interface Programme {
   deadline_winter: string | null;
   deadline_summer: string | null;
   is_featured: boolean;
+  moiletter_accepted: boolean;
+  motiv_required: string;
+  test_required: string;
+  interview: string;
+  modul_required: string;
+  preparation_subject_group: string | null;
 }
 
-const degreeLabel: Record<string, string> = { preparatory_course: "Preparatory", bachelors: "Bachelor's", masters: "Master's" };
-const langLabel: Record<string, string>   = { german_only: "German", english_only: "English", german_english: "DE / EN" };
-const modeLabel: Record<string, string>   = { fully_onsite: "On-site", fully_online: "Online", hybrid: "Hybrid" };
+const degreeLabel: Record<string, string> = {
+  preparatory_course: "Preparatory", bachelors: "Bachelor's", masters: "Master's",
+};
+const langLabel: Record<string, string> = {
+  german_only: "German", english_only: "English", german_english: "DE / EN",
+};
+const modeLabel: Record<string, string> = {
+  fully_onsite: "On-site", fully_online: "Online", hybrid: "Hybrid",
+};
 const degreeBadge: Record<string, string> = {
   preparatory_course: "bg-amber-100 text-amber-700",
   bachelors: "bg-blue-100 text-blue-700",
   masters: "bg-[#1a3c5e]/10 text-[#1a3c5e]",
 };
-
 const FALLBACK = "https://images.unsplash.com/photo-1562774053-701939374585?w=600&h=340&fit=crop";
 
-type FilterKey = "degree" | "language" | "subject" | "nc" | "semester" | "mode" | "ects" | "institution" | "tuition";
-type Filters = Record<FilterKey, string[]>;
-const defaultFilters: Filters = { degree: [], language: [], subject: [], nc: [], semester: [], mode: [], ects: [], institution: [], tuition: [] };
+type FilterKey =
+  | "degree" | "language" | "subject" | "nc" | "semester"
+  | "mode" | "ects" | "institution" | "tuition"
+  | "moi" | "motiv" | "test_req" | "interview_req" | "modul" | "prep_group";
 
-function FilterPill({ label, options, values, onChange, searchable }: {
-  label: string; options: { value: string; label: string }[];
-  values: string[]; onChange: (v: string[]) => void; searchable?: boolean;
+type Filters = Record<FilterKey, string[]>;
+const defaultFilters: Filters = {
+  degree: [], language: [], subject: [], nc: [], semester: [],
+  mode: [], ects: [], institution: [], tuition: [],
+  moi: [], motiv: [], test_req: [], interview_req: [], modul: [], prep_group: [],
+};
+
+// ─── FilterPill ──────────────────────────────────────────────────────────────
+
+function FilterPill({
+  label, options, values, onChange, searchable,
+}: {
+  label: string;
+  options: { value: string; label: string }[];
+  values: string[];
+  onChange: (v: string[]) => void;
+  searchable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -60,34 +86,39 @@ function FilterPill({ label, options, values, onChange, searchable }: {
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => {
-      const portal = document.getElementById("fp-portal");
       if (btnRef.current?.contains(e.target as Node)) return;
-      if (portal?.contains(e.target as Node)) return;
+      if (document.getElementById("fp-portal")?.contains(e.target as Node)) return;
       setOpen(false); setSearch("");
     };
-    const onScroll = () => { setOpen(false); setSearch(""); };
     document.addEventListener("mousedown", close);
-    window.addEventListener("scroll", onScroll, true);
-    return () => { document.removeEventListener("mousedown", close); window.removeEventListener("scroll", onScroll, true); };
+    window.addEventListener("scroll", () => { setOpen(false); setSearch(""); }, { once: true, capture: true });
+    return () => document.removeEventListener("mousedown", close);
   }, [open]);
 
-  const toggleOpt = (v: string) => {
-    if (values.includes(v)) onChange(values.filter(x => x !== v));
-    else onChange([...values, v]);
-  };
+  const toggleOpt = (v: string) =>
+    onChange(values.includes(v) ? values.filter(x => x !== v) : [...values, v]);
 
-  const visible = searchable ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase())) : options;
+  const visible = searchable
+    ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+    : options;
+
   const pillLabel = active
-    ? values.length === 1 ? (options.find(o => o.value === values[0])?.label ?? label) : `${label} (${values.length})`
+    ? values.length === 1
+      ? (options.find(o => o.value === values[0])?.label ?? label)
+      : `${label} (${values.length})`
     : label;
 
   const dropdown = open && rect ? createPortal(
-    <div id="fp-portal" style={{ position: "fixed", top: rect.bottom + 6, left: Math.min(rect.left, window.innerWidth - 300), width: 288, zIndex: 999999 }}
+    <div id="fp-portal"
+      style={{ position: "fixed", top: rect.bottom + 6, left: Math.min(rect.left, window.innerWidth - 300), width: 288, zIndex: 999999 }}
       className="bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden">
       <div className="px-4 py-3 border-b border-gray-100">
         <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
-        {searchable && <input autoFocus type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search options..."
-          className="mt-2 w-full px-3 py-2 border border-gray-200 rounded-lg text-[13px] outline-none focus:border-[#1a3c5e] bg-gray-50" />}
+        {searchable && (
+          <input autoFocus type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search options..."
+            className="mt-2 w-full px-3 py-2 border border-gray-200 rounded-lg text-[13px] outline-none focus:border-[#1a3c5e] bg-gray-50" />
+        )}
       </div>
       <div className="max-h-64 overflow-y-auto py-1">
         {visible.map(o => {
@@ -104,7 +135,9 @@ function FilterPill({ label, options, values, onChange, searchable }: {
         })}
       </div>
       <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
-        {active ? <button onClick={() => { onChange([]); setOpen(false); }} className="text-[12px] text-red-500 font-semibold hover:underline">Clear</button> : <span />}
+        {active
+          ? <button onClick={() => { onChange([]); setOpen(false); }} className="text-[12px] text-red-500 font-semibold hover:underline">Clear</button>
+          : <span />}
         <button onClick={() => { setOpen(false); setSearch(""); }} className="px-5 py-2 bg-[#1a3c5e] text-white text-[13px] font-bold rounded-xl hover:bg-[#14304d]">
           {active ? `Apply (${values.length})` : "OK"}
         </button>
@@ -116,14 +149,287 @@ function FilterPill({ label, options, values, onChange, searchable }: {
   return (
     <div className="flex-shrink-0">
       <button ref={btnRef} onClick={toggle}
-        className={`flex items-center gap-1.5 px-4 py-2 rounded-full border text-[13px] font-semibold transition-all whitespace-nowrap ${active ? "bg-[#1a3c5e] border-[#1a3c5e] text-white" : "bg-white border-gray-300 text-gray-700 hover:border-[#1a3c5e] hover:text-[#1a3c5e]"}`}>
+        className={`flex items-center gap-1.5 px-4 py-2 rounded-full border text-[13px] font-semibold transition-all whitespace-nowrap ${
+          active ? "bg-[#1a3c5e] border-[#1a3c5e] text-white" : "bg-white border-gray-300 text-gray-700 hover:border-[#1a3c5e] hover:text-[#1a3c5e]"
+        }`}>
         {pillLabel}
-        <svg className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+        <svg className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
       </button>
       {dropdown}
     </div>
   );
 }
+
+// ─── DynamicFilterBar ─────────────────────────────────────────────────────────
+//
+// Strategy:
+//  • All pills rendered in a flex-nowrap overflow-hidden container (one visual row).
+//  • A ResizeObserver watches the container width.
+//  • After layout, we count how many pills overflow the right edge → that's hiddenCount.
+//  • "More (N)" button always sits outside the scroll area, always visible.
+//  • When expanded → container switches to flex-wrap so all pills appear on as many
+//    rows as needed. Nothing scrolls, nothing is cut off.
+
+function DynamicFilterBar({
+  filters, setFilter, showPrepGroup, totalActive, reset,
+}: {
+  filters: Filters;
+  setFilter: (k: FilterKey) => (v: string[]) => void;
+  showPrepGroup: boolean;
+  totalActive: number;
+  reset: () => void;
+}) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const moreBtnRef = useRef<HTMLButtonElement>(null);
+  const [hiddenCount, setHiddenCount] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+
+  // Re-measure when screen resizes or pill count changes
+  const pillCount = showPrepGroup ? 15 : 14; // base 9 + prep_group? + 5 admission
+
+  useEffect(() => {
+    if (expanded) { setHiddenCount(0); return; }
+
+    const measure = () => {
+      const row = rowRef.current;
+      if (!row) return;
+      const rowRight = row.getBoundingClientRect().right;
+      const pills = row.querySelectorAll<HTMLElement>("[data-pill]");
+      let hidden = 0;
+      pills.forEach(pill => {
+        // A pill is "hidden" if its right edge overflows the container
+        if (pill.getBoundingClientRect().right > rowRight + 2) hidden++;
+      });
+      setHiddenCount(hidden);
+    };
+
+    // Let the browser finish layout before measuring
+    const raf = requestAnimationFrame(() => setTimeout(measure, 0));
+    const ro = new ResizeObserver(measure);
+    if (rowRef.current) ro.observe(rowRef.current);
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+  }, [expanded, pillCount]);
+
+  // Auto-expand if a hidden filter is active
+  const admissionKeys: FilterKey[] = ["moi", "motiv", "test_req", "interview_req", "modul"];
+  useEffect(() => {
+    if (hiddenCount > 0 && (admissionKeys.some(k => filters[k].length > 0) || (showPrepGroup && filters.prep_group.length > 0))) {
+      setExpanded(true);
+    }
+  }, [filters]);
+
+  const allPills = [
+    {
+      key: "degree" as FilterKey,
+      label: "Programme Type",
+      options: [
+        { value: "preparatory_course", label: "Preparatory Course" },
+        { value: "bachelors", label: "Bachelor's Degree" },
+        { value: "masters", label: "Master's Degree" },
+      ],
+    },
+    {
+      key: "language" as FilterKey,
+      label: "Course Language",
+      options: [
+        { value: "german_only", label: "German Only" },
+        { value: "english_only", label: "English Only" },
+        { value: "german_english", label: "German & English" },
+      ],
+    },
+    {
+      key: "subject" as FilterKey,
+      label: "Subject Area",
+      searchable: true,
+      options: [
+        "Agriculture", "Arts", "Biochemistry", "Biology", "Business", "Chemistry",
+        "Communication", "Computer Science", "Economics", "Education", "Engineering",
+        "Environmental Science", "Food and Beverage", "Health", "Literature",
+        "Medicine", "Philosophy", "Physics", "Psychology", "Social Science",
+      ].map(s => ({ value: s, label: s })),
+    },
+    {
+      key: "nc" as FilterKey,
+      label: "Admission",
+      options: [
+        { value: "non_restricted", label: "Non-restricted (ohne NC)" },
+        { value: "restricted", label: "Restricted (NC)" },
+      ],
+    },
+    {
+      key: "mode" as FilterKey,
+      label: "Mode of Study",
+      options: [
+        { value: "fully_onsite", label: "Fully On-site" },
+        { value: "fully_online", label: "Fully Online" },
+        { value: "hybrid", label: "Hybrid" },
+      ],
+    },
+    {
+      key: "semester" as FilterKey,
+      label: "Beginning",
+      options: [
+        { value: "summer", label: "Summer Semester" },
+        { value: "winter", label: "Winter Semester" },
+        { value: "summer_winter", label: "Summer & Winter" },
+      ],
+    },
+    {
+      key: "institution" as FilterKey,
+      label: "Institution Type",
+      options: [
+        { value: "public", label: "Public" },
+        { value: "private", label: "Private" },
+      ],
+    },
+    {
+      key: "tuition" as FilterKey,
+      label: "Tuition Fees",
+      options: [
+        { value: "free", label: "No (Tuition-free)" },
+        { value: "paid", label: "Yes (Paid)" },
+      ],
+    },
+    {
+      key: "ects" as FilterKey,
+      label: "ECTS",
+      options: [
+        { value: "0", label: "0 ECTS" },
+        { value: "180", label: "180 ECTS" },
+        { value: "210", label: "210 ECTS" },
+      ],
+    },
+    // Conditional
+    ...(showPrepGroup ? [{
+      key: "prep_group" as FilterKey,
+      label: "Subject Group",
+      options: [
+        { value: "engineering",      label: "Engineering & Technology" },
+        { value: "natural_sciences", label: "Natural Sciences" },
+        { value: "economics",        label: "Economics & Social Sciences" },
+        { value: "humanities",       label: "Humanities & Language" },
+        { value: "medicine",         label: "Medicine & Health Sciences" },
+        { value: "arts",             label: "Arts & Design" },
+      ],
+    }] : []),
+    // Admission detail filters (these tend to overflow first on small screens)
+    {
+      key: "moi" as FilterKey,
+      label: "MOI Letter",
+      options: [
+        { value: "accepted", label: "Accepted" },
+        { value: "not_accepted", label: "Not Accepted" },
+      ],
+    },
+    {
+      key: "motiv" as FilterKey,
+      label: "Motivation Letter",
+      options: [
+        { value: "yes", label: "Required" },
+        { value: "no", label: "Not Required" },
+        { value: "varied", label: "Varied" },
+      ],
+    },
+    {
+      key: "test_req" as FilterKey,
+      label: "Test Required",
+      options: [
+        { value: "yes", label: "Yes" },
+        { value: "no", label: "No" },
+        { value: "varied", label: "Varied" },
+      ],
+    },
+    {
+      key: "interview_req" as FilterKey,
+      label: "Interview",
+      options: [
+        { value: "yes", label: "Yes" },
+        { value: "no", label: "No" },
+        { value: "varied", label: "Varied" },
+      ],
+    },
+    {
+      key: "modul" as FilterKey,
+      label: "Module Handbook",
+      options: [
+        { value: "yes", label: "Required" },
+        { value: "no", label: "Not Required" },
+      ],
+    },
+  ];
+
+  const activeFiltersCount = totalActive;
+  const moreLabel = expanded
+    ? "Less"
+    : hiddenCount > 0
+    ? `More (${hiddenCount})`
+    : "More";
+
+  return (
+    <div className="flex items-start gap-0">
+      {/*
+        Pills container:
+        - Collapsed: flex-nowrap + overflow-hidden → one row, overflow pills invisible
+        - Expanded: flex-wrap → all pills flow onto as many rows as needed
+      */}
+      <div
+        ref={rowRef}
+        className={`flex-1 min-w-0 flex gap-2 transition-all ${
+          expanded ? "flex-wrap" : "flex-nowrap overflow-hidden"
+        }`}
+        style={!expanded ? { height: "38px" } : undefined}
+      >
+        {allPills.map(pill => (
+          <div key={pill.key} data-pill className="flex-shrink-0">
+            <FilterPill
+              label={pill.label}
+              options={pill.options}
+              values={filters[pill.key]}
+              onChange={setFilter(pill.key)}
+              searchable={pill.searchable}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Controls — always pinned to right, never scroll, never wrap */}
+      <div className="flex items-center gap-2 flex-shrink-0 pl-3 border-l border-gray-100 self-start mt-0">
+        <button
+          ref={moreBtnRef}
+          onClick={() => setExpanded(e => !e)}
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full border text-[13px] font-semibold transition-all whitespace-nowrap ${
+            expanded
+              ? "bg-gray-100 border-gray-200 text-gray-700"
+              : hiddenCount > 0
+              ? "bg-[#1a3c5e] border-[#1a3c5e] text-white"
+              : "bg-white border-gray-300 text-gray-600 hover:border-[#1a3c5e] hover:text-[#1a3c5e]"
+          }`}
+        >
+          {moreLabel}
+          <svg className={`w-3.5 h-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {activeFiltersCount > 0 && (
+          <button
+            onClick={reset}
+            className="flex items-center justify-center w-8 h-8 rounded-full border border-red-200 text-red-400 hover:bg-red-50 transition-colors flex-shrink-0"
+            title={`Clear ${activeFiltersCount} active filter${activeFiltersCount !== 1 ? "s" : ""}`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── ProgrammeCard ────────────────────────────────────────────────────────────
 
 function ProgrammeCard({ p }: { p: Programme }) {
   function deadline() {
@@ -131,24 +437,32 @@ function ProgrammeCard({ p }: { p: Programme }) {
     if (!d) return "See website";
     return new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   }
-
   return (
-    <a href={`/programmes/${p.id}`} className="group bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 flex flex-col">
+    <a href={`/programmes/${p.id}`}
+      className="group bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 flex flex-col">
       <div className="relative h-44 overflow-hidden">
-        <img src={p.universities?.image_url ?? FALLBACK} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        <img src={p.universities?.image_url ?? FALLBACK} alt={p.title}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-        {p.is_featured && <span className="absolute top-3 left-3 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-2 py-0.5 rounded-full">Featured</span>}
-        <span className="absolute top-3 right-3 bg-white/90 text-gray-600 text-[11px] font-semibold px-2.5 py-1 rounded-full">Deadline: {deadline()}</span>
+        {p.is_featured && (
+          <span className="absolute top-3 left-3 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-2 py-0.5 rounded-full">Featured</span>
+        )}
+        <span className="absolute top-3 right-3 bg-white/90 text-gray-600 text-[11px] font-semibold px-2.5 py-1 rounded-full">
+          Deadline: {deadline()}
+        </span>
       </div>
       <div className="p-5 flex flex-col flex-1">
-        <div className="flex items-center gap-2 mb-2.5">
+        <div className="mb-2.5">
           <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${degreeBadge[p.degree_type] ?? "bg-gray-100 text-gray-600"}`}>
             {degreeLabel[p.degree_type] ?? p.degree_type}
           </span>
-          {p.subject_area && <span className="text-[11px] text-gray-400 font-medium">{p.subject_area}</span>}
         </div>
-        <h3 className="font-extrabold text-[#1a3c5e] text-[15px] tracking-tight leading-snug mb-1 group-hover:text-[#1e4d7b]">{p.title}</h3>
-        <p className="text-gray-500 text-[13px] font-medium mb-4">{p.universities?.name} · {p.universities?.city}</p>
+        <h3 className="font-extrabold text-[#1a3c5e] text-[15px] tracking-tight leading-snug mb-1 group-hover:text-[#1e4d7b]">
+          {p.title}
+        </h3>
+        <p className="text-gray-500 text-[13px] font-medium mb-4">
+          {p.universities?.name} · {p.universities?.city}
+        </p>
         <div className="mt-auto flex items-center gap-3 pt-3 border-t border-gray-50 text-[12.5px] text-gray-400 font-medium flex-wrap">
           <span>{langLabel[p.language_of_instruction] ?? p.language_of_instruction}</span>
           <span className="text-gray-200">|</span>
@@ -165,12 +479,7 @@ function ProgrammeCard({ p }: { p: Programme }) {
   );
 }
 
-const SUBJECT_AREAS_STATIC = [
-  "Agriculture","Arts","Biochemistry","Biology","Business","Chemistry",
-  "Communication","Computer Science","Economics","Education","Engineering",
-  "Environmental Science","Food and Beverage","Health","Literature",
-  "Medicine","Philosophy","Physics","Psychology","Social Science",
-];
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 function ProgrammesPageInner() {
   const searchParams = useSearchParams();
@@ -179,7 +488,6 @@ function ProgrammesPageInner() {
   const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [sort, setSort] = useState("relevance");
-  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     const q = searchParams.get("q");
@@ -199,11 +507,8 @@ function ProgrammesPageInner() {
 
   const setFilter = (key: FilterKey) => (v: string[]) => setFilters(prev => ({ ...prev, [key]: v }));
 
-  const secondaryKeys: FilterKey[] = ["mode", "semester", "institution", "tuition", "ects"];
-  const secondaryActive = secondaryKeys.reduce((acc, k) => acc + filters[k].length, 0);
   const totalActive = Object.values(filters).reduce((acc, arr) => acc + arr.length, 0);
-
-  useEffect(() => { if (secondaryActive > 0) setExpanded(true); }, [secondaryActive]);
+  const showPrepGroup = filters.degree.includes("preparatory_course");
 
   const has = (arr: string[], val: string) => arr.length === 0 || arr.includes(val);
 
@@ -229,7 +534,15 @@ function ProgrammesPageInner() {
       has(filters.institution, p.universities?.type ?? "") &&
       (filters.tuition.length === 0 ||
         (filters.tuition.includes("free") && !p.tuition_fee) ||
-        (filters.tuition.includes("paid") && p.tuition_fee))
+        (filters.tuition.includes("paid") && p.tuition_fee)) &&
+      (filters.moi.length === 0 ||
+        (filters.moi.includes("accepted") && p.moiletter_accepted) ||
+        (filters.moi.includes("not_accepted") && !p.moiletter_accepted)) &&
+      has(filters.motiv, p.motiv_required) &&
+      has(filters.test_req, p.test_required) &&
+      has(filters.interview_req, p.interview) &&
+      has(filters.modul, p.modul_required) &&
+      (filters.prep_group.length === 0 || has(filters.prep_group, p.preparation_subject_group ?? ""))
     );
     if (sort === "name") d.sort((a, b) => a.title.localeCompare(b.title));
     else if (sort === "university") d.sort((a, b) => (a.universities?.name ?? "").localeCompare(b.universities?.name ?? ""));
@@ -238,76 +551,50 @@ function ProgrammesPageInner() {
     return d;
   }, [allProgrammes, query, filters, sort]);
 
-  const reset = () => { setFilters(defaultFilters); setQuery(""); setExpanded(false); };
+  const reset = () => { setFilters(defaultFilters); setQuery(""); };
 
   return (
     <>
       <Header />
       <div className="min-h-screen bg-gray-50 pt-16">
+
+        {/* Hero search */}
         <div className="bg-[#0f2942]">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
             <h1 className="text-white font-extrabold text-2xl tracking-tight mb-1">International Programmes in Germany</h1>
             <p className="text-white/50 text-[13px] mb-4">
               {loading ? "Loading..." : `${allProgrammes.length} programme${allProgrammes.length !== 1 ? "s" : ""} available`}
             </p>
-            <div className="flex gap-2">
-              <div className="flex-1 flex items-center bg-white rounded-xl overflow-hidden">
-                <input type="text" value={query} onChange={e => setQuery(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && e.currentTarget.blur()}
-                  placeholder="Search by subject, university, or city..."
-                  className="flex-1 px-5 py-3.5 text-[14px] outline-none placeholder-gray-400 bg-transparent" />
-                {query && (
-                  <button onClick={() => setQuery("")} className="pr-4 text-gray-300 hover:text-gray-500">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white border-b border-gray-100 shadow-sm sticky top-16 z-40">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex flex-col gap-2">
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              <FilterPill label="Programme Type" values={filters.degree} onChange={setFilter("degree")}
-                options={[{ value: "preparatory_course", label: "Preparatory Course" }, { value: "bachelors", label: "Bachelor's Degree" }, { value: "masters", label: "Master's Degree" }]} />
-              <FilterPill label="Course Language" values={filters.language} onChange={setFilter("language")}
-                options={[{ value: "german_only", label: "German Only" }, { value: "english_only", label: "English Only" }, { value: "german_english", label: "German & English" }]} />
-              <FilterPill label="Subject Area" values={filters.subject} onChange={setFilter("subject")} searchable
-                options={SUBJECT_AREAS_STATIC.map(s => ({ value: s, label: s }))} />
-              <FilterPill label="Admission" values={filters.nc} onChange={setFilter("nc")}
-                options={[{ value: "non_restricted", label: "Non-restricted (ohne NC)" }, { value: "restricted", label: "Restricted (NC)" }]} />
-              <div className="flex-shrink-0 ml-auto flex items-center gap-2">
-                <button onClick={() => setExpanded(!expanded)}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-full border text-[13px] font-semibold transition-all whitespace-nowrap ${secondaryActive > 0 ? "bg-[#1a3c5e] border-[#1a3c5e] text-white" : expanded ? "bg-gray-100 border-gray-300 text-gray-700" : "bg-white border-gray-300 text-gray-600 hover:border-[#1a3c5e] hover:text-[#1a3c5e]"}`}>
-                  {secondaryActive > 0 ? `More (${secondaryActive})` : "More"}
-                  <svg className={`w-3.5 h-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+            <div className="flex items-center bg-white rounded-xl overflow-hidden">
+              <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && e.currentTarget.blur()}
+                placeholder="Search by subject, university, or city..."
+                className="flex-1 px-5 py-3.5 text-[14px] outline-none placeholder-gray-400 bg-transparent" />
+              {query && (
+                <button onClick={() => setQuery("")} className="pr-4 text-gray-300 hover:text-gray-500">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
-                {totalActive > 0 && (
-                  <button onClick={reset} className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-red-200 text-red-500 text-[13px] font-semibold hover:bg-red-50 whitespace-nowrap transition-colors">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                    Clear ({totalActive})
-                  </button>
-                )}
-              </div>
+              )}
             </div>
-            {expanded && (
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide pt-1 border-t border-gray-100">
-                <FilterPill label="Mode of Study" values={filters.mode} onChange={setFilter("mode")}
-                  options={[{ value: "fully_onsite", label: "Fully On-site" }, { value: "fully_online", label: "Fully Online" }, { value: "hybrid", label: "Hybrid" }]} />
-                <FilterPill label="Beginning" values={filters.semester} onChange={setFilter("semester")}
-                  options={[{ value: "summer", label: "Summer Semester" }, { value: "winter", label: "Winter Semester" }, { value: "summer_winter", label: "Summer & Winter" }]} />
-                <FilterPill label="Institution Type" values={filters.institution} onChange={setFilter("institution")}
-                  options={[{ value: "public", label: "Public" }, { value: "private", label: "Private" }]} />
-                <FilterPill label="Tuition Fees" values={filters.tuition} onChange={setFilter("tuition")}
-                  options={[{ value: "free", label: "No (Tuition-free)" }, { value: "paid", label: "Yes (Paid)" }]} />
-                <FilterPill label="ECTS" values={filters.ects} onChange={setFilter("ects")}
-                  options={[{ value: "0", label: "0 ECTS" }, { value: "180", label: "180 ECTS" }, { value: "210", label: "210 ECTS" }]} />
-              </div>
-            )}
           </div>
         </div>
 
+        {/* Sticky filter bar */}
+        <div className="bg-white border-b border-gray-100 shadow-sm sticky top-16 z-40">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3">
+            <DynamicFilterBar
+              filters={filters}
+              setFilter={setFilter}
+              showPrepGroup={showPrepGroup}
+              totalActive={totalActive}
+              reset={reset}
+            />
+          </div>
+        </div>
+
+        {/* Results */}
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
           <div className="flex items-center justify-between mb-5">
             <p className="text-gray-500 text-[13.5px]">
@@ -316,7 +603,8 @@ function ProgrammesPageInner() {
             </p>
             <div className="flex items-center gap-2">
               <span className="text-gray-400 text-[12.5px] hidden sm:block">Sort:</span>
-              <select value={sort} onChange={e => setSort(e.target.value)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-[12.5px] text-gray-700 outline-none focus:border-[#1a3c5e] bg-white">
+              <select value={sort} onChange={e => setSort(e.target.value)}
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-[12.5px] text-gray-700 outline-none focus:border-[#1a3c5e] bg-white">
                 <option value="relevance">Featured first</option>
                 <option value="name">Name A–Z</option>
                 <option value="university">University A–Z</option>
@@ -340,10 +628,14 @@ function ProgrammesPageInner() {
             </div>
           ) : results.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
-              <svg className="w-12 h-12 text-gray-200 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" /></svg>
+              <svg className="w-12 h-12 text-gray-200 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+              </svg>
               <h3 className="font-extrabold text-[#1a3c5e] text-lg mb-2">No programmes found</h3>
               <p className="text-gray-400 text-sm mb-5">Try adjusting your filters or search terms.</p>
-              <button onClick={reset} className="px-5 py-2.5 bg-[#1a3c5e] text-white font-semibold text-sm rounded-xl hover:bg-[#14304d]">Clear all filters</button>
+              <button onClick={reset} className="px-5 py-2.5 bg-[#1a3c5e] text-white font-semibold text-sm rounded-xl hover:bg-[#14304d]">
+                Clear all filters
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">

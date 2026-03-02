@@ -41,6 +41,7 @@ interface ProgrammeDetail {
     ranking: string | null;
     website_url: string | null;
     image_url: string | null;
+    logo_url: string | null; // ← added
   } | null;
 }
 
@@ -76,6 +77,47 @@ const modeLabel: Record<string, string> = {
 
 const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1562774053-701939374585?w=1200&h=400&fit=crop";
 
+// ─── UniversityLogo ──────────────────────────────────────────────────────────
+// Priority: logo_url from DB → Clearbit from website domain → initials
+
+function extractDomain(url: string | null): string | null {
+  if (!url) return null;
+  try { return new URL(url).hostname.replace(/^www\./, ""); }
+  catch { return null; }
+}
+
+function UniversityLogo({ logoUrl, websiteUrl, name }: {
+  logoUrl: string | null;
+  websiteUrl: string | null;
+  name: string;
+}) {
+  const domain = extractDomain(websiteUrl);
+  const sources = [logoUrl, domain ? `https://logo.clearbit.com/${domain}` : null].filter(Boolean) as string[];
+  const [srcIndex, setSrcIndex] = useState(0);
+  const [allFailed, setAllFailed] = useState(sources.length === 0);
+
+  const initials = name.split(" ").map(w => w[0]).filter(Boolean).slice(0, 3).join("").toUpperCase();
+
+  const handleError = () => {
+    if (srcIndex < sources.length - 1) setSrcIndex(i => i + 1);
+    else setAllFailed(true);
+  };
+
+  if (allFailed || sources.length === 0) {
+    return <span className="font-extrabold text-gray-400 text-sm">{initials || "UNI"}</span>;
+  }
+
+  return (
+    <img
+      src={sources[srcIndex]}
+      alt={`${name} logo`}
+      className="w-full h-full object-contain p-1.5"
+      onError={handleError}
+    />
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function ProgrammeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [p, setP] = useState<ProgrammeDetail | null>(null);
@@ -100,7 +142,7 @@ export default function ProgrammeDetailPage() {
               interview, modul_required, moiletter_accepted,
               tuition_fee, tuition_fee_amount, deadline_winter, deadline_summer,
               requirements, subject_area,
-              universities(id, name, city, address, student_count, ranking, website_url, image_url)
+              universities(id, name, city, address, student_count, ranking, website_url, image_url, logo_url)
             `)
             .eq("id", id)
             .single(),
@@ -198,10 +240,13 @@ export default function ProgrammeDetailPage() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div className="flex items-start gap-4">
-                <div className="w-16 h-16 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
-                  <span className="font-extrabold text-gray-400 text-sm">
-                    {uni?.name?.split(" ").map(w => w[0]).slice(0, 3).join("") ?? "UNI"}
-                  </span>
+                {/* Logo — no frame, sits flush */}
+                <div className="w-16 h-16 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  <UniversityLogo
+                    logoUrl={uni?.logo_url ?? null}
+                    websiteUrl={uni?.website_url ?? null}
+                    name={uni?.name ?? ""}
+                  />
                 </div>
                 <div>
                   <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
