@@ -349,7 +349,7 @@ export default function ProgrammeDetailPage() {
                           { label: "Study Mode",     value: modeLabel[p.study_mode] ?? p.study_mode },
                           { label: "Subject Area",   value: p.subject_area ?? "—" },
                           { label: "Admission",      value: p.nc_status === "non_restricted" ? "Open (ohne NC)" : "Restricted (NC)" },
-                          { label: "MOI Letter",     value: p.moiletter_accepted ? "Accepted" : "Not Accepted" },
+                          { label: "MOI Letter", value: p.moiletter_accepted === "accepted" ? "Accepted" : p.moiletter_accepted === "varied" ? "Varies" : "Not Accepted" },
                         ].map(item => (
                           <div key={item.label} className="bg-gray-50 rounded-xl p-3">
                             <p className="text-[10.5px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{item.label}</p>
@@ -383,7 +383,7 @@ export default function ProgrammeDetailPage() {
                           { label: "Language Test",     status: p.test_required },
                           { label: "Interview",         status: p.interview },
                           { label: "Module Handbook",   status: p.modul_required },
-                          { label: "MOI Letter",        status: p.moiletter_accepted ? "yes" : "no" },
+                          { label: "MOI Letter",        status: p.moiletter_accepted },
                         ].map(r => {
                           const s = reqLabel[r.status] ?? { label: r.status, color: "text-gray-600 bg-gray-50" };
                           return (

@@ -24,7 +24,7 @@ interface Programme {
   deadline_winter: string | null;
   deadline_summer: string | null;
   is_featured: boolean;
-  moiletter_accepted: boolean;
+  moiletter_accepted: string;
   motiv_required: string;
   test_required: string;
   interview: string;
@@ -319,8 +319,9 @@ function DynamicFilterBar({
       key: "moi" as FilterKey,
       label: "MOI Letter",
       options: [
-        { value: "accepted", label: "Accepted" },
+        { value: "accepted",     label: "Accepted" },
         { value: "not_accepted", label: "Not Accepted" },
+        { value: "varied",       label: "Varied" },
       ],
     },
     {
@@ -535,9 +536,7 @@ function ProgrammesPageInner() {
       (filters.tuition.length === 0 ||
         (filters.tuition.includes("free") && !p.tuition_fee) ||
         (filters.tuition.includes("paid") && p.tuition_fee)) &&
-      (filters.moi.length === 0 ||
-        (filters.moi.includes("accepted") && p.moiletter_accepted) ||
-        (filters.moi.includes("not_accepted") && !p.moiletter_accepted)) &&
+      has(filters.moi, p.moiletter_accepted) &&
       has(filters.motiv, p.motiv_required) &&
       has(filters.test_req, p.test_required) &&
       has(filters.interview_req, p.interview) &&

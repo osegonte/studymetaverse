@@ -5,12 +5,12 @@ import { supabase } from "@/lib/supabase";
 interface Stats {
   universities: number;
   programmes: number;
-  news: number;
+  blog: number;
   match_reports: number;
 }
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<Stats>({ universities: 0, programmes: 0, news: 0, match_reports: 0 });
+  const [stats, setStats] = useState<Stats>({ universities: 0, programmes: 0, blog: 0, match_reports: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function AdminDashboard() {
       setStats({
         universities:  uniRes.count  ?? 0,
         programmes:    progRes.count  ?? 0,
-        news:          newsRes.count  ?? 0,
+        blog:          newsRes.count  ?? 0,
         match_reports: reportRes.count ?? 0,
       });
       setLoading(false);
@@ -42,7 +42,7 @@ export default function AdminDashboard() {
       icon: <svg className="w-6 h-6 text-[#1a3c5e]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
     },
     {
-      label: "News Posts", value: stats.news,
+      label: "Blog Posts", value: stats.blog,
       icon: <svg className="w-6 h-6 text-[#1a3c5e]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" /></svg>,
     },
     {
@@ -52,10 +52,10 @@ export default function AdminDashboard() {
   ];
 
   const quickLinks = [
-    { label: "Add a University",   href: "/admin/universities", desc: "Create a new university record" },
-    { label: "Add a Programme",    href: "/admin/programmes",   desc: "Add a study programme" },
-    { label: "Write a News Post",  href: "/admin/news",         desc: "Publish something to the news section" },
-    { label: "Edit Settings",      href: "/admin/settings",     desc: "Change prices, site copy, and config" },
+    { label: "Add a University",  href: "/admin/universities", desc: "Create a new university record" },
+    { label: "Add a Programme",   href: "/admin/programmes",   desc: "Add a study programme" },
+    { label: "Write a Blog Post", href: "/admin/news",         desc: "Publish something to the blog" },
+    { label: "Edit Settings",     href: "/admin/settings",     desc: "Change prices, site copy, and config" },
   ];
 
   return (

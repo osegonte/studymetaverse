@@ -102,7 +102,7 @@ export default function NewsPage() {
     <div className="max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold text-[#1a3c5e] tracking-tight">News Posts</h1>
+          <h1 className="text-2xl font-extrabold text-[#1a3c5e] tracking-tight">Blog</h1>
           <p className="text-gray-400 text-sm mt-0.5">{posts.length} posts in database</p>
         </div>
         <button onClick={openNew} className="flex items-center gap-2 px-4 py-2.5 bg-[#1a3c5e] text-white font-semibold text-[13.5px] rounded-xl hover:bg-[#14304d] transition-colors shadow-sm">
